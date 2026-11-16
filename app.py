@@ -22,6 +22,8 @@ st.divider()
 try:
     df = cargar_datos(URL_DATOS)
     st.success("✅ Base de datos conectada exitosamente.")
+    st.info("Nombres exactos de las columnas en tu Google Sheets:")
+    st.write(df.columns.tolist())
     
     # ---------------- 3. TABLA DE DETALLES FINAL ----------------
     st.subheader(f"📋 Detalle de Suscripciones ({len(df)} registros)")
