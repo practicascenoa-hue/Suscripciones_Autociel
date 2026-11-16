@@ -31,18 +31,19 @@ try:
     # Lista con los nombres de las columnas que queremos extraer
     # IMPORTANTE: Deben coincidir con los nombres en Google Sheets
     columnas_deseadas = [
-        "Marca", 
-        "Tipo de solicitud", 
-        "Vendedor", 
-        "Fecha de confirmación de cliente", 
-        "Cliente", 
-        "Localidad", 
-        "Fecha de tmk", 
-        "Estado de tmk", 
-        "Fecha de ingreso a cisa", 
-        "Estado"
+       0:"Marca"
+1:"Contrato"
+2:"Tipo de Solicitud"
+3:"Vendedor"
+4:"FECHA CONFIRMACION CLIENTE"
+5:"cliente"
+8:"localidad"
+9:"Modelo Suscripto"
+18:"Fecha de TMK"
+19:"TMK"
+20:"Fecha  de Ingreso en CISA"
+21:"ESTADO"
     ]
-
     # Verificamos qué columnas de la lista realmente existen en tu planilla
     columnas_finales = [col for col in columnas_deseadas if col in df.columns]
 
