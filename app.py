@@ -22,15 +22,15 @@ st.divider()
 try:
     df = cargar_datos(URL_DATOS)
     st.success("✅ Base de datos conectada exitosamente.")
-    st.info("Nombres exactos de las columnas en tu Google Sheets:")
-    st.write(df.columns.tolist())
+    
+    # st.info("Nombres exactos de las columnas en tu Google Sheets:")
+    # st.write(df.columns.tolist())
     
     # ---------------- 3. TABLA DE DETALLES FINAL ----------------
     st.subheader(f"📋 Detalle de Suscripciones ({len(df)} registros)")
 
-    # Lista con los nombres de las columnas que queremos extraer
-    # IMPORTANTE: Deben coincidir con los nombres en Google Sheets
-   columnas_deseadas = [
+    # Lista con los nombres exactos de las columnas
+    columnas_deseadas = [
         "Marca", 
         "Tipo de solicitud", 
         "Vendedor", 
@@ -42,10 +42,11 @@ try:
         "Fecha de ingreso a SISA", 
         "Estado"
     ]
-    # Verificamos qué columnas de la lista realmente existen en tu planilla
+
+    # Verificamos qué columnas existen
     columnas_finales = [col for col in columnas_deseadas if col in df.columns]
 
-    # Mostramos la tabla en la interfaz
+    # Mostramos la tabla
     st.dataframe(df[columnas_finales], use_container_width=True, hide_index=True)
     
 except Exception as e:
