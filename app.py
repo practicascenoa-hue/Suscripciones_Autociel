@@ -21,29 +21,13 @@ st.divider()
 try:
     df = cargar_datos(URL_DATOS)
     
-    # ---------------- FILTRO GLOBAL DE VENDEDOR ----------------
-    # Extraemos la lista de vendedores únicos, quitamos vacíos y ordenamos alfabéticamente
-    lista_vendedores = sorted(df["Vendedor"].dropna().astype(str).unique().tolist())
-    
-    # Creamos un selector múltiple. Si lo dejan vacío, muestra todos.
-    vendedores_seleccionados = st.multiselect(
-        "👤 Filtrar por Vendedor (dejá en blanco para ver a todos):", 
-        options=lista_vendedores
-    )
-    
-    # Aplicamos el filtro a los datos base
-    if vendedores_seleccionados:
-        df_filtrado = df[df["Vendedor"].isin(vendedores_seleccionados)]
-    else:
-        df_filtrado = df
-
-    st.success(f"✅ Mostrando datos de {len(df_filtrado)} registros en total.")
+    st.success(f"✅ Base de datos conectada exitosamente. Total de registros: {len(df)}")
     
     # ---------------- 1. GRÁFICO DESPLEGABLE ----------------
     with st.expander("📊 Gráfico Comparativo por Marca (Solo Aceptadas por Fecha CISA)", expanded=True):
         
-        # Usamos los datos filtrados por el vendedor
-        df_grafico = df_filtrado.copy()
+        # Usamos los datos completos
+        df_grafico = df.copy()
         
         # Condición estricta: Estado == "aceptado"
         df_grafico = df_grafico[df_grafico["ESTADO"].astype(str).str.lower().str.strip() == "aceptado"]
@@ -88,7 +72,7 @@ try:
             else:
                 st.warning("No hay fechas válidas para graficar.")
         else:
-            st.warning("No hay operaciones con estado 'Aceptado' y fecha de ingreso para el vendedor/es seleccionado/s.")
+            st.warning("No hay operaciones con estado 'Aceptado' y fecha de ingreso.")
 
     st.divider()
 
@@ -110,8 +94,8 @@ try:
 
     columnas_finales = [col for col in columnas_deseadas if col in df.columns]
     
-    # Mostramos la tabla con el df_filtrado (para que también reaccione al filtro de vendedor)
-    st.dataframe(df_filtrado[columnas_finales], use_container_width=True, hide_index=True)
+    # Mostramos la tabla general
+    st.dataframe(df[columnas_finales], use_container_width=True, hide_index=True)
     
 except Exception as e:
     st.error(f"Error al cargar los datos: {e}")
