@@ -23,27 +23,27 @@ try:
     df = cargar_datos(URL_DATOS)
     st.success("✅ Base de datos conectada exitosamente.")
     
-    # ESTO NOS MOSTRARÁ LOS NOMBRES REALES:
-    st.warning("⚠️ Nombres exactos detectados en el Excel:")
-    st.write(df.columns.tolist())
-    
     # ---------------- 3. TABLA DE DETALLES FINAL ----------------
     st.subheader(f"📋 Detalle de Suscripciones ({len(df)} registros)")
 
+    # Lista con los nombres EXACTOS sacados de tu Google Sheets
     columnas_deseadas = [
         "Marca", 
-        "Tipo de solicitud", 
+        "Tipo de Solicitud", 
         "Vendedor", 
-        "Fecha de confirmación de cliente", 
-        "Cliente", 
-        "Localidad", 
-        "Fecha de tmk", 
-        "Estado de tmk", 
-        "Fecha de ingreso a SISA", 
-        "Estado"
+        "FECHA CONFIRMACION CLIENTE", 
+        "cliente", 
+        "localidad", 
+        "Fecha de TMK", 
+        "TMK", 
+        "Fecha  de Ingreso en CISA", 
+        "ESTADO"
     ]
 
+    # Filtramos las columnas que existen en la base
     columnas_finales = [col for col in columnas_deseadas if col in df.columns]
+
+    # Mostramos la tabla en la interfaz
     st.dataframe(df[columnas_finales], use_container_width=True, hide_index=True)
     
 except Exception as e:
