@@ -11,7 +11,7 @@ URL_DATOS = "https://docs.google.com/spreadsheets/d/1Juea0cEn3t7Emdtx0HexD7Ipema
 @st.cache_data(ttl=60)
 def cargar_datos(url):
     df = pd.read_csv(url)
-    # Limpiamos espacios en blanco accidentales en los nombres de las columnas
+    # Limpiamos espacios en blanco accidentales en los nombres de las columnas (al principio y al final)
     df.columns = df.columns.str.strip()
     return df
 
@@ -23,28 +23,13 @@ try:
     df = cargar_datos(URL_DATOS)
     st.success("✅ Base de datos conectada exitosamente.")
     
-    # ---------------- 3. TABLA DE DETALLES FINAL ----------------
-    st.subheader(f"📋 Detalle de Suscripciones ({len(df)} registros)")
-
-    # Lista con los nombres EXACTOS sacados de tu Google Sheets
-    columnas_deseadas = [
-        "Marca", 
-        "Tipo de Solicitud", 
-        "Vendedor", 
-        "FECHA CONFIRMACION CLIENTE", 
-        "cliente", 
-        "localidad", 
-        "Fecha de TMK", 
-        "TMK", 
-        "Fecha  de Ingreso en CISA", 
-        "ESTADO"
-    ]
-
-    # Filtramos las columnas que existen en la base
-    columnas_finales = [col for col in columnas_deseadas if col in df.columns]
-
-    # Mostramos la tabla en la interfaz
-    st.dataframe(df[columnas_finales], use_container_width=True, hide_index=True)
-    
-except Exception as e:
-    st.error(f"Error al cargar los datos: {e}")
+    # ---------------- 1. FILTROS Y GRÁFICO DESPLEGABLE ----------------
+    with st.expander("📊 Ver Gráfico Comparativo de Suscripciones (Aprobadas y con Ingreso)", expanded=True):
+        
+        # Hacemos una copia de los datos para no borrarle filas a la tabla de abajo
+        df_grafico = df.copy()
+        
+        # Condición 1: TMK == "ok" (pasamos a minúscula y quitamos espacios para asegurar)
+        df_grafico = df_grafico[df_grafico["TMK"].astype(str).str.lower().str.strip() == "ok"]
+        
+        # Condición 2: Estado == "aceptado"
