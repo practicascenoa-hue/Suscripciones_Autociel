@@ -11,7 +11,6 @@ URL_DATOS = "https://docs.google.com/spreadsheets/d/1Juea0cEn3t7Emdtx0HexD7Ipema
 @st.cache_data(ttl=60)
 def cargar_datos(url):
     df = pd.read_csv(url)
-    # Limpiamos espacios en blanco accidentales en los nombres de las columnas
     df.columns = df.columns.str.strip()
     return df
 
@@ -21,53 +20,80 @@ st.divider()
 # Cargamos los datos
 try:
     df = cargar_datos(URL_DATOS)
-    st.success("✅ Base de datos conectada exitosamente.")
     
-    # ---------------- 1. FILTROS Y GRÁFICO DESPLEGABLE ----------------
-    with st.expander("📊 Ver Gráfico Comparativo de Suscripciones (Aprobadas y con Ingreso)", expanded=True):
+    # ---------------- FILTRO GLOBAL DE VENDEDOR ----------------
+    # Extraemos la lista de vendedores únicos, quitamos vacíos y ordenamos alfabéticamente
+    lista_vendedores = sorted(df["Vendedor"].dropna().astype(str).unique().tolist())
+    
+    # Creamos un selector múltiple. Si lo dejan vacío, muestra todos.
+    vendedores_seleccionados = st.multiselect(
+        "👤 Filtrar por Vendedor (dejá en blanco para ver a todos):", 
+        options=lista_vendedores
+    )
+    
+    # Aplicamos el filtro a los datos base
+    if vendedores_seleccionados:
+        df_filtrado = df[df["Vendedor"].isin(vendedores_seleccionados)]
+    else:
+        df_filtrado = df
+
+    st.success(f"✅ Mostrando datos de {len(df_filtrado)} registros en total.")
+    
+    # ---------------- 1. GRÁFICO DESPLEGABLE ----------------
+    with st.expander("📊 Gráfico Comparativo por Marca (Solo Aceptadas por Fecha CISA)", expanded=True):
         
-        # Hacemos una copia de los datos
-        df_grafico = df.copy()
+        # Usamos los datos filtrados por el vendedor
+        df_grafico = df_filtrado.copy()
         
-        # Condición 1: TMK == "ok" 
-        df_grafico = df_grafico[df_grafico["TMK"].astype(str).str.lower().str.strip() == "ok"]
-        
-        # Condición 2: Estado == "aceptado"
+        # Condición estricta: Estado == "aceptado"
         df_grafico = df_grafico[df_grafico["ESTADO"].astype(str).str.lower().str.strip() == "aceptado"]
         
-        # Condición 3: Fecha de Ingreso en CISA no debe estar vacía
+        # Descartamos filas sin fecha de ingreso a CISA
         df_grafico = df_grafico[df_grafico["Fecha  de Ingreso en CISA"].notna()]
         df_grafico = df_grafico[df_grafico["Fecha  de Ingreso en CISA"].astype(str).str.strip() != ""]
-        df_grafico = df_grafico[df_grafico["Fecha  de Ingreso en CISA"].astype(str).str.lower() != "nan"]
 
         if not df_grafico.empty:
-            # Convertimos la fecha a formato Mes-Año (Ej: 2026-10)
+            # Convertimos la fecha a formato Mes-Año
             df_grafico["Mes_Ingreso"] = pd.to_datetime(df_grafico["Fecha  de Ingreso en CISA"], errors="coerce").dt.strftime("%Y-%m")
+            df_grafico = df_grafico.dropna(subset=["Mes_Ingreso"])
             
-            # Agrupamos sumando cuántas hay por Mes y por Marca
-            df_agrupado = df_grafico.groupby(["Mes_Ingreso", "Marca"]).size().reset_index(name="Cantidad")
-            
-            # Dibujamos el gráfico
-            fig = px.bar(
-                df_agrupado, 
-                x="Mes_Ingreso", 
-                y="Cantidad", 
-                color="Marca", 
-                barmode="group",
-                text="Cantidad",
-                color_discrete_map={"PEUGEOT": "#2E86C1", "CITROËN": "#E74C3C"},
-                labels={"Mes_Ingreso": "Mes de Ingreso a SISA", "Cantidad": "Volumen de Suscripciones"}
-            )
-            
-            fig.update_traces(textposition='outside')
-            st.plotly_chart(fig, use_container_width=True)
+            if not df_grafico.empty:
+                # Agrupamos para contar la cantidad
+                df_agrupado = df_grafico.groupby(["Mes_Ingreso", "Marca"]).size().reset_index(name="Cantidad")
+                
+                # Calculamos el porcentaje sobre el total de cada mes
+                totales_por_mes = df_agrupado.groupby("Mes_Ingreso")["Cantidad"].transform("sum")
+                df_agrupado["Porcentaje"] = (df_agrupado["Cantidad"] / totales_por_mes) * 100
+                
+                # Creamos el texto de la etiqueta (Ej: "45 (60.5%)")
+                df_agrupado["Etiqueta"] = df_agrupado["Cantidad"].astype(str) + " (" + df_agrupado["Porcentaje"].round(1).astype(str) + "%)"
+                
+                # Dibujamos el gráfico
+                fig = px.bar(
+                    df_agrupado, 
+                    x="Mes_Ingreso", 
+                    y="Cantidad", 
+                    color="Marca", 
+                    barmode="group",
+                    text="Etiqueta",
+                    color_discrete_map={"PEUGEOT": "#2E86C1", "CITROËN": "#E74C3C"},
+                    labels={"Mes_Ingreso": "Mes de Ingreso a CISA", "Cantidad": "Volumen Aprobado"}
+                )
+                
+                fig.update_traces(textposition='outside')
+                # Damos un margen arriba para que el porcentaje no se corte
+                fig.update_layout(margin=dict(t=40))
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("No hay fechas válidas para graficar.")
         else:
-            st.warning("Actualmente no hay registros que cumplan las 3 condiciones estrictas a la vez (TMK ok, Aceptado y con Fecha de Ingreso).")
+            st.warning("No hay operaciones con estado 'Aceptado' y fecha de ingreso para el vendedor/es seleccionado/s.")
 
     st.divider()
 
     # ---------------- 2. TABLA DE DETALLES FINAL ----------------
-    st.subheader(f"📋 Detalle de Suscripciones ({len(df)} registros totales)")
+    st.subheader("📋 Detalle de Suscripciones")
 
     columnas_deseadas = [
         "Marca", 
@@ -83,7 +109,9 @@ try:
     ]
 
     columnas_finales = [col for col in columnas_deseadas if col in df.columns]
-    st.dataframe(df[columnas_finales], use_container_width=True, hide_index=True)
+    
+    # Mostramos la tabla con el df_filtrado (para que también reaccione al filtro de vendedor)
+    st.dataframe(df_filtrado[columnas_finales], use_container_width=True, hide_index=True)
     
 except Exception as e:
     st.error(f"Error al cargar los datos: {e}")
