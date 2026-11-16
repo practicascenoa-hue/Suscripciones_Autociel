@@ -23,13 +23,13 @@ try:
     df = cargar_datos(URL_DATOS)
     st.success("✅ Base de datos conectada exitosamente.")
     
-    # st.info("Nombres exactos de las columnas en tu Google Sheets:")
-    # st.write(df.columns.tolist())
+    # ESTO NOS MOSTRARÁ LOS NOMBRES REALES:
+    st.warning("⚠️ Nombres exactos detectados en el Excel:")
+    st.write(df.columns.tolist())
     
     # ---------------- 3. TABLA DE DETALLES FINAL ----------------
     st.subheader(f"📋 Detalle de Suscripciones ({len(df)} registros)")
 
-    # Lista con los nombres exactos de las columnas
     columnas_deseadas = [
         "Marca", 
         "Tipo de solicitud", 
@@ -43,10 +43,7 @@ try:
         "Estado"
     ]
 
-    # Verificamos qué columnas existen
     columnas_finales = [col for col in columnas_deseadas if col in df.columns]
-
-    # Mostramos la tabla
     st.dataframe(df[columnas_finales], use_container_width=True, hide_index=True)
     
 except Exception as e:
