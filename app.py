@@ -26,19 +26,21 @@ try:
     # ---------------- 1. GRÁFICO DESPLEGABLE ----------------
     with st.expander("📊 Gráfico Comparativo por Marca (Solo Aceptadas por Fecha CISA)", expanded=True):
         
-        # Usamos los datos completos
         df_grafico = df.copy()
         
-        # Condición estricta: Estado == "aceptado"
-        df_grafico = df_grafico[df_grafico["ESTADO"].astype(str).str.lower().str.strip() == "aceptado"]
+        # CORRECCIÓN 1: Aceptamos tanto "aceptado" como "aceptada"
+        df_grafico = df_grafico[df_grafico["ESTADO"].astype(str).str.lower().str.strip().isin(["aceptado", "aceptada"])]
         
-        # Descartamos filas sin fecha de ingreso a CISA
+        # CORRECCIÓN 2: Filtramos valores nulos y textos como "pendiente" o "renunciado" en la fecha
         df_grafico = df_grafico[df_grafico["Fecha  de Ingreso en CISA"].notna()]
-        df_grafico = df_grafico[df_grafico["Fecha  de Ingreso en CISA"].astype(str).str.strip() != ""]
+        filtro_textos_invalidos = ["pendiente", "renunciado", "none", "nan", ""]
+        df_grafico = df_grafico[~df_grafico["Fecha  de Ingreso en CISA"].astype(str).str.lower().str.strip().isin(filtro_textos_invalidos)]
 
         if not df_grafico.empty:
-            # Convertimos la fecha a formato Mes-Año
+            # Convertimos la fecha a formato Mes-Año. Si falla (ej: formato raro), lo vuelve NaT (nulo)
             df_grafico["Mes_Ingreso"] = pd.to_datetime(df_grafico["Fecha  de Ingreso en CISA"], errors="coerce").dt.strftime("%Y-%m")
+            
+            # Eliminamos los nulos que dejó la conversión
             df_grafico = df_grafico.dropna(subset=["Mes_Ingreso"])
             
             if not df_grafico.empty:
@@ -65,14 +67,13 @@ try:
                 )
                 
                 fig.update_traces(textposition='outside')
-                # Damos un margen arriba para que el porcentaje no se corte
                 fig.update_layout(margin=dict(t=40))
                 
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.warning("No hay fechas válidas para graficar.")
+                st.warning("Hay operaciones 'Aceptadas', pero sus fechas de CISA tienen un formato no válido.")
         else:
-            st.warning("No hay operaciones con estado 'Aceptado' y fecha de ingreso.")
+            st.warning("No hay operaciones con estado 'Aceptada' que ya tengan una fecha cargada en CISA.")
 
     st.divider()
 
@@ -93,8 +94,6 @@ try:
     ]
 
     columnas_finales = [col for col in columnas_deseadas if col in df.columns]
-    
-    # Mostramos la tabla general
     st.dataframe(df[columnas_finales], use_container_width=True, hide_index=True)
     
 except Exception as e:
