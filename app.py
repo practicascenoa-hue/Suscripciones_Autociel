@@ -31,15 +31,29 @@ try:
         # Filtro 1: Estado aceptado/aceptada
         df_grafico = df_grafico[df_grafico["ESTADO"].astype(str).str.lower().str.strip().isin(["aceptado", "aceptada"])]
         
-        # Filtro 2: Filtramos valores nulos y textos sin formato de fecha
+        # Filtro 2: Filtramos nulos y textos que claramente no son fechas
         df_grafico = df_grafico[df_grafico["Fecha  de Ingreso en CISA"].notna()]
         filtro_textos_invalidos = ["pendiente", "renunciado", "none", "nan", ""]
         df_grafico = df_grafico[~df_grafico["Fecha  de Ingreso en CISA"].astype(str).str.lower().str.strip().isin(filtro_textos_invalidos)]
 
         if not df_grafico.empty:
-            # Convertimos la fecha a formato Mes-Año
-            df_grafico["Mes_Ingreso"] = pd.to_datetime(df_grafico["Fecha  de Ingreso en CISA"], errors="coerce").dt.strftime("%Y-%m")
             
+            # --- NUEVA LÓGICA DE LIMPIEZA DE FECHAS ---
+            df_grafico["fecha_limpia"] = df_grafico["Fecha  de Ingreso en CISA"].astype(str).str.lower().str.strip()
+            
+            # Traductor automático de meses en texto ("ene", "feb") a números ("01", "02")
+            meses = {
+                "ene": "01", "feb": "02", "mar": "03", "abr": "04", 
+                "may": "05", "jun": "06", "jul": "07", "ago": "08", 
+                "sep": "09", "oct": "10", "nov": "11", "dic": "12"
+            }
+            for letra, num in meses.items():
+                df_grafico["fecha_limpia"] = df_grafico["fecha_limpia"].str.replace(letra, num, regex=False)
+            
+            # Convertimos la fecha forzando el formato argentino (Día primero) con dayfirst=True
+            df_grafico["Mes_Ingreso"] = pd.to_datetime(df_grafico["fecha_limpia"], errors="coerce", dayfirst=True).dt.strftime("%Y-%m")
+            # ------------------------------------------
+
             # Eliminamos los nulos que dejó la conversión
             df_grafico = df_grafico.dropna(subset=["Mes_Ingreso"])
             
