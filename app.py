@@ -19,26 +19,33 @@ def cargar_objetivos(url):
     try:
         df_obj = pd.read_csv(url, header=None)
         
+        # Buscamos en qué fila están los títulos (donde dice "AÑO")
         fila_header = df_obj[df_obj.apply(lambda x: x.astype(str).str.contains('AÑO', case=False).any(), axis=1)].index[0]
         
+        # Seteamos esa fila como los nombres de las columnas reales
         df_obj.columns = df_obj.iloc[fila_header].astype(str).str.strip().str.upper()
         df_obj = df_obj.iloc[fila_header + 1:].copy()
         
+        # FIX CRÍTICO DEL ERROR AMARILLO: Forzamos a que 'c' sea un string antes de buscarle palabras
         cols_marcas = [c for c in df_obj.columns if "PEUGEOT" in str(c) or "CITR" in str(c)]
         cols = ["AÑO", "MES"] + cols_marcas
         df_obj = df_obj[cols].copy()
         
+        # Convertimos a números obligando a descartar vacíos o texto basura
         df_obj["AÑO"] = pd.to_numeric(df_obj["AÑO"], errors="coerce")
         df_obj["MES"] = pd.to_numeric(df_obj["MES"], errors="coerce")
         df_obj = df_obj.dropna(subset=["AÑO", "MES"])
         
+        # Formato final exacto para cruzar (Ej: "2026-10")
         df_obj["AÑO"] = df_obj["AÑO"].astype(int).astype(str)
         df_obj["MES"] = df_obj["MES"].astype(int).astype(str).str.zfill(2)
         df_obj["Mes_Ingreso"] = df_obj["AÑO"] + "-" + df_obj["MES"]
         
+        # Transformamos la tabla para cruzarla con el gráfico
         df_obj = df_obj.melt(id_vars=["Mes_Ingreso"], value_vars=cols_marcas, 
                              var_name="Marca", value_name="Objetivo")
         
+        # Limpiamos nombres de marcas para cruce perfecto
         df_obj["Marca"] = df_obj["Marca"].astype(str).str.upper().str.strip()
         df_obj["Marca"] = df_obj["Marca"].replace({"CITRÖEN": "CITROËN", "CITROEN": "CITROËN"})
         
@@ -56,17 +63,21 @@ try:
     df = cargar_datos(URL_DATOS)
     df_objetivos, error_obj = cargar_objetivos(URL_OBJETIVOS)
     
-    # ---------------- LIMPIEZA Y TRANSFORMACIÓN ----------------
+    # ---------------- LIMPIEZA Y TRANSFORMACIÓN (BACKEND INVISIBLE) ----------------
     
+    # Limpiamos columna Marca principal para cruce exacto
     df["Marca"] = df["Marca"].astype(str).str.upper().str.strip()
     df["Marca"] = df["Marca"].replace({"CITROEN": "CITROËN"})
     
+    # 1. Filtro estricto: Solo Aceptadas
     df = df[df["ESTADO"].astype(str).str.lower().str.strip().isin(["aceptado", "aceptada"])]
     
+    # 2. Filtro de Fechas Inválidas
     df = df[df["Fecha  de Ingreso en CISA"].notna()]
     filtro_textos_invalidos = ["pendiente", "renunciado", "none", "nan", ""]
     df = df[~df["Fecha  de Ingreso en CISA"].astype(str).str.lower().str.strip().isin(filtro_textos_invalidos)]
     
+    # 3. Traductor de meses y formato de fecha
     df["fecha_limpia"] = df["Fecha  de Ingreso en CISA"].astype(str).str.lower().str.strip()
     meses = {
         "ene": "01", "feb": "02", "mar": "03", "abr": "04", 
@@ -83,6 +94,7 @@ try:
     df["Mes"] = df["Fecha_Real"].dt.month.astype(str).str.zfill(2)
     df["Mes_Ingreso"] = df["Fecha_Real"].dt.strftime("%Y-%m")
     
+    # 4. Unificación de Nombres de Vendedores
     reemplazos_vendedores = {
         "P. PORTAL": "PORTAL", "P.PORTAL": "PORTAL", "PABLO PORTAL": "PORTAL", "M. PORTAL": "PORTAL",
         "LUIS JAVIER": "JAVIER LUIS", "LUIS": "JAVIER LUIS",
@@ -101,6 +113,7 @@ try:
         if error_obj:
             st.warning(f"⚠️ No se pudieron cargar los objetivos. Error detectado: {error_obj}")
             
+        # ---------------- FILTROS GLOBALES ----------------
         st.subheader("🔍 Filtros Globales")
         col_filtro1, col_filtro2 = st.columns(2)
         
@@ -112,6 +125,7 @@ try:
             meses_disponibles = sorted(df["Mes"].unique().tolist())
             meses_sel = st.multiselect("📆 Seleccionar Mes (dejá en blanco para todos):", meses_disponibles)
 
+        # Aplicamos filtros
         df_filtrado = df.copy()
         if años_sel:
             df_filtrado = df_filtrado[df_filtrado["Año"].isin(años_sel)]
@@ -121,25 +135,34 @@ try:
         st.success(f"✅ Mostrando {len(df_filtrado)} operaciones aprobadas y con fecha válida.")
         st.divider()
         
+        # ---------------- GRÁFICOS ----------------
         if not df_filtrado.empty:
             col_graf1, col_graf2 = st.columns(2)
             
-            # --- GRÁFICO 1: COMPARATIVO POR MARCA CON LÍNEA HLINE ROJA ---
+            # --- GRÁFICO 1: COMPARATIVO POR MARCA CON OBJETIVOS ---
             with col_graf1:
                 st.markdown("### 🏢 Evolución vs. Objetivos")
                 
                 df_marca = df_filtrado.groupby(["Mes_Ingreso", "Marca"]).size().reset_index(name="Cantidad")
                 
+                # Cruzamos con tabla de objetivos
                 if not df_objetivos.empty:
                     df_marca = df_marca.merge(df_objetivos, on=["Mes_Ingreso", "Marca"], how="left")
                     df_marca["Objetivo"] = df_marca["Objetivo"].fillna(0)
                 else:
                     df_marca["Objetivo"] = 0
                 
+                # Porcentajes del mix
                 totales_mes = df_marca.groupby("Mes_Ingreso")["Cantidad"].transform("sum")
                 df_marca["Porcentaje"] = (df_marca["Cantidad"] / totales_mes) * 100
                 
-                df_marca["Etiqueta"] = df_marca["Cantidad"].astype(str) + " (" + df_marca["Porcentaje"].round(1).astype(str) + "%)"
+                # Etiqueta enriquecida
+                def armar_etiqueta(row):
+                    txt = f"{row['Cantidad']} ({row['Porcentaje']:.1f}%)"
+                    if row['Objetivo'] > 0:
+                        txt += f"<br>🎯 Obj: {int(row['Objetivo'])}"
+                    return txt
+                df_marca["Etiqueta"] = df_marca.apply(armar_etiqueta, axis=1)
                 
                 fig_marca = px.bar(
                     df_marca, 
@@ -153,21 +176,19 @@ try:
                 )
                 fig_marca.update_traces(textposition='outside')
                 
-                # LA MAGIA DE LA LÍNEA RECTA PUNTEADA
-                df_obj_validos = df_marca[df_marca["Objetivo"] > 0]
-                if not df_obj_validos.empty:
-                    # Buscamos los valores únicos de objetivo para no dibujar líneas superpuestas
-                    objetivos_unicos = df_obj_validos.groupby("Objetivo")["Marca"].apply(lambda x: " y ".join(x.unique())).reset_index()
-                    
-                    for _, row in objetivos_unicos.iterrows():
-                        fig_marca.add_hline(
-                            y=row["Objetivo"],
-                            line_dash="dot",
-                            line_color="red",
-                            line_width=3,
-                            annotation_text=f"Objetivo {row['Marca']}: {int(row['Objetivo'])}",
-                            annotation_position="top right",
-                            annotation_font=dict(color="red", size=14)
+                # Agregamos líneas de objetivos
+                colores_lineas = {"PEUGEOT": "#1A5276", "CITROËN": "#78281F"}
+                
+                for marca in df_marca["Marca"].unique():
+                    df_linea = df_marca[df_marca["Marca"] == marca].sort_values("Mes_Ingreso")
+                    if df_linea["Objetivo"].sum() > 0:
+                        fig_marca.add_scatter(
+                            x=df_linea["Mes_Ingreso"],
+                            y=df_linea["Objetivo"],
+                            mode='lines+markers',
+                            name=f'🎯 Meta {marca}',
+                            line=dict(color=colores_lineas.get(marca, "black"), width=3, dash='dot'),
+                            marker=dict(size=10, symbol="diamond")
                         )
 
                 fig_marca.update_xaxes(type='category')
