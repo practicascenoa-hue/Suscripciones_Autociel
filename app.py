@@ -18,7 +18,6 @@ def cargar_datos(url):
 @st.cache_data(ttl=60)
 def cargar_objetivos(url):
     try:
-        # Leemos sin encabezados porque sabemos que las primeras filas están vacías
         df_obj = pd.read_csv(url, header=None)
         
         # Buscamos en qué fila están los títulos (donde dice "AÑO")
@@ -26,28 +25,35 @@ def cargar_objetivos(url):
         
         # Seteamos esa fila como los nombres de las columnas reales
         df_obj.columns = df_obj.iloc[fila_header].astype(str).str.strip().str.upper()
-        df_obj = df_obj.iloc[fila_header + 1:].copy() # Cortamos la tabla desde ahí para abajo
+        df_obj = df_obj.iloc[fila_header + 1:].copy()
         
-        # Nos quedamos con las columnas que importan y quitamos filas vacías
-        cols = [c for c in df_obj.columns if c in ["AÑO", "MES", "PEUGEOT", "CITRÖEN"]]
-        df_obj = df_obj[cols].dropna(subset=["AÑO", "MES"])
+        # Encontramos dinámicamente las columnas de marca 
+        cols_marcas = [c for c in df_obj.columns if "PEUGEOT" in c or "CITR" in c]
+        cols = ["AÑO", "MES"] + cols_marcas
+        df_obj = df_obj[cols].copy()
         
-        # Limpiamos y formateamos (Ej: 9 -> 09, 2026.0 -> 2026)
-        df_obj["AÑO"] = df_obj["AÑO"].astype(float).astype(int).astype(str)
-        df_obj["MES"] = df_obj["MES"].astype(float).astype(int).astype(str).str.zfill(2)
+        # LECTURA A PRUEBA DE BALAS: Convertimos a números obligando a descartar vacíos o texto basura
+        df_obj["AÑO"] = pd.to_numeric(df_obj["AÑO"], errors="coerce")
+        df_obj["MES"] = pd.to_numeric(df_obj["MES"], errors="coerce")
+        df_obj = df_obj.dropna(subset=["AÑO", "MES"])
+        
+        # Formato final
+        df_obj["AÑO"] = df_obj["AÑO"].astype(int).astype(str)
+        df_obj["MES"] = df_obj["MES"].astype(int).astype(str).str.zfill(2)
         df_obj["Mes_Ingreso"] = df_obj["AÑO"] + "-" + df_obj["MES"]
         
-        # Transformamos las columnas de marcas en filas para cruzarlas fácil con el gráfico
-        df_obj = df_obj.melt(id_vars=["Mes_Ingreso"], value_vars=["PEUGEOT", "CITRÖEN"], 
+        # Melt
+        df_obj = df_obj.melt(id_vars=["Mes_Ingreso"], value_vars=cols_marcas, 
                              var_name="Marca", value_name="Objetivo")
         
-        # Traductor de errores de tipeo en el Sheets de objetivos
-        df_obj["Marca"] = df_obj["Marca"].replace({"CITRÖEN": "CITROËN"})
+        # Limpiamos nombres de marcas para cruce perfecto
+        df_obj["Marca"] = df_obj["Marca"].astype(str).str.upper().str.strip()
+        df_obj["Marca"] = df_obj["Marca"].replace({"CITRÖEN": "CITROËN", "CITROEN": "CITROËN"})
+        
         df_obj["Objetivo"] = pd.to_numeric(df_obj["Objetivo"], errors="coerce").fillna(0)
         
         return df_obj
     except Exception as e:
-        # Si la hoja de objetivos falla o la borran, devolvemos un DataFrame vacío para no romper la app
         return pd.DataFrame(columns=["Mes_Ingreso", "Marca", "Objetivo"])
 
 st.title("📊 Tablero de Suscripciones")
@@ -59,6 +65,10 @@ try:
     df_objetivos = cargar_objetivos(URL_OBJETIVOS)
     
     # ---------------- LIMPIEZA Y TRANSFORMACIÓN (BACKEND INVISIBLE) ----------------
+    
+    # Limpiamos columna Marca principal para cruce exacto
+    df["Marca"] = df["Marca"].astype(str).str.upper().str.strip()
+    df["Marca"] = df["Marca"].replace({"CITROEN": "CITROËN"})
     
     # 1. Filtro estricto: Solo Aceptadas
     df = df[df["ESTADO"].astype(str).str.lower().str.strip().isin(["aceptado", "aceptada"])]
@@ -101,7 +111,7 @@ try:
     # -------------------------------------------------------------------------------
 
     if not df.empty:
-        # ---------------- FILTROS GLOBALES (FRONTEND) MULTISELECCIÓN ----------------
+        # ---------------- FILTROS GLOBALES ----------------
         st.subheader("🔍 Filtros Globales")
         col_filtro1, col_filtro2 = st.columns(2)
         
@@ -131,21 +141,20 @@ try:
             with col_graf1:
                 st.markdown("### 🏢 Evolución vs. Objetivos")
                 
-                # Agrupamos ventas
                 df_marca = df_filtrado.groupby(["Mes_Ingreso", "Marca"]).size().reset_index(name="Cantidad")
                 
-                # Cruzamos con la tabla de objetivos dinámicos
+                # Cruzamos con tabla de objetivos
                 if not df_objetivos.empty:
                     df_marca = df_marca.merge(df_objetivos, on=["Mes_Ingreso", "Marca"], how="left")
                     df_marca["Objetivo"] = df_marca["Objetivo"].fillna(0)
                 else:
                     df_marca["Objetivo"] = 0
                 
-                # Calculamos porcentajes del mix
+                # Porcentajes del mix
                 totales_mes = df_marca.groupby("Mes_Ingreso")["Cantidad"].transform("sum")
                 df_marca["Porcentaje"] = (df_marca["Cantidad"] / totales_mes) * 100
                 
-                # Armamos la etiqueta enriquecida para mostrar en la barra
+                # Etiqueta enriquecida
                 def armar_etiqueta(row):
                     txt = f"{row['Cantidad']} ({row['Porcentaje']:.1f}%)"
                     if row['Objetivo'] > 0:
@@ -153,7 +162,6 @@ try:
                     return txt
                 df_marca["Etiqueta"] = df_marca.apply(armar_etiqueta, axis=1)
                 
-                # 1. Dibujamos las barras base
                 fig_marca = px.bar(
                     df_marca, 
                     x="Mes_Ingreso", 
@@ -166,8 +174,8 @@ try:
                 )
                 fig_marca.update_traces(textposition='outside')
                 
-                # 2. Agregamos las líneas punteadas de los objetivos
-                colores_lineas = {"PEUGEOT": "#1A5276", "CITROËN": "#78281F"} # Tonos oscuros para resaltar
+                # Agregamos líneas de objetivos y CORREGIMOS EL EJE X
+                colores_lineas = {"PEUGEOT": "#1A5276", "CITROËN": "#78281F"}
                 
                 for marca in df_marca["Marca"].unique():
                     df_linea = df_marca[df_marca["Marca"] == marca].sort_values("Mes_Ingreso")
@@ -181,7 +189,10 @@ try:
                             marker=dict(size=10, symbol="diamond")
                         )
 
+                # Fix crítico para que el eje X no invente horas
+                fig_marca.update_xaxes(type='category')
                 fig_marca.update_layout(margin=dict(t=20), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                
                 st.plotly_chart(fig_marca, use_container_width=True)
 
             # --- GRÁFICO 2: RANKING DE VENDEDORES ---
