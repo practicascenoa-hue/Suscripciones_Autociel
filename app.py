@@ -23,69 +23,53 @@ try:
     
     st.success(f"✅ Base de datos conectada exitosamente. Total de registros: {len(df)}")
     
-    # ---------------- 1. GRÁFICOS Y MÉTRICAS ----------------
-    with st.expander("📊 Gráficos Mensuales de Suscripciones (Solo Aceptadas por Fecha CISA)", expanded=True):
+    # ---------------- 1. GRÁFICO DESPLEGABLE ----------------
+    with st.expander("📊 Gráfico Comparativo por Marca (Solo Aceptadas por Fecha CISA)", expanded=True):
         
-        # Filtramos la base principal una sola vez para ambos gráficos
-        df_graficos = df.copy()
+        df_grafico = df.copy()
         
         # Filtro 1: Estado aceptado/aceptada
-        df_graficos = df_graficos[df_graficos["ESTADO"].astype(str).str.lower().str.strip().isin(["aceptado", "aceptada"])]
+        df_grafico = df_grafico[df_grafico["ESTADO"].astype(str).str.lower().str.strip().isin(["aceptado", "aceptada"])]
         
-        # Filtro 2: Fechas válidas
-        df_graficos = df_graficos[df_graficos["Fecha  de Ingreso en CISA"].notna()]
+        # Filtro 2: Filtramos valores nulos y textos sin formato de fecha
+        df_grafico = df_grafico[df_grafico["Fecha  de Ingreso en CISA"].notna()]
         filtro_textos_invalidos = ["pendiente", "renunciado", "none", "nan", ""]
-        df_graficos = df_graficos[~df_graficos["Fecha  de Ingreso en CISA"].astype(str).str.lower().str.strip().isin(filtro_textos_invalidos)]
+        df_grafico = df_grafico[~df_grafico["Fecha  de Ingreso en CISA"].astype(str).str.lower().str.strip().isin(filtro_textos_invalidos)]
 
-        if not df_graficos.empty:
-            # Convertimos la fecha a Mes-Año
-            df_graficos["Mes_Ingreso"] = pd.to_datetime(df_graficos["Fecha  de Ingreso en CISA"], errors="coerce").dt.strftime("%Y-%m")
-            df_graficos = df_graficos.dropna(subset=["Mes_Ingreso"])
+        if not df_grafico.empty:
+            # Convertimos la fecha a formato Mes-Año
+            df_grafico["Mes_Ingreso"] = pd.to_datetime(df_grafico["Fecha  de Ingreso en CISA"], errors="coerce").dt.strftime("%Y-%m")
             
-            if not df_graficos.empty:
+            # Eliminamos los nulos que dejó la conversión
+            df_grafico = df_grafico.dropna(subset=["Mes_Ingreso"])
+            
+            if not df_grafico.empty:
+                # Agrupamos para contar la cantidad
+                df_agrupado = df_grafico.groupby(["Mes_Ingreso", "Marca"]).size().reset_index(name="Cantidad")
                 
-                # Creamos las pestañas para organizar los gráficos
-                tab1, tab2 = st.tabs(["🏢 Comparativo por Marca", "👤 Comparativo por Vendedor"])
+                # Calculamos el porcentaje sobre el total de cada mes
+                totales_por_mes = df_agrupado.groupby("Mes_Ingreso")["Cantidad"].transform("sum")
+                df_agrupado["Porcentaje"] = (df_agrupado["Cantidad"] / totales_por_mes) * 100
                 
-                # --- PESTAÑA 1: POR MARCA ---
-                with tab1:
-                    df_marca = df_graficos.groupby(["Mes_Ingreso", "Marca"]).size().reset_index(name="Cantidad")
-                    totales_mes_marca = df_marca.groupby("Mes_Ingreso")["Cantidad"].transform("sum")
-                    df_marca["Porcentaje"] = (df_marca["Cantidad"] / totales_mes_marca) * 100
-                    df_marca["Etiqueta"] = df_marca["Cantidad"].astype(str) + " (" + df_marca["Porcentaje"].round(1).astype(str) + "%)"
-                    
-                    fig_marca = px.bar(
-                        df_marca, 
-                        x="Mes_Ingreso", 
-                        y="Cantidad", 
-                        color="Marca", 
-                        barmode="group",
-                        text="Etiqueta",
-                        color_discrete_map={"PEUGEOT": "#2E86C1", "CITROËN": "#E74C3C"},
-                        labels={"Mes_Ingreso": "Mes de Ingreso a CISA", "Cantidad": "Volumen Aprobado"}
-                    )
-                    fig_marca.update_traces(textposition='outside')
-                    fig_marca.update_layout(margin=dict(t=40))
-                    st.plotly_chart(fig_marca, use_container_width=True)
+                # Creamos el texto de la etiqueta (Ej: "45 (60.5%)")
+                df_agrupado["Etiqueta"] = df_agrupado["Cantidad"].astype(str) + " (" + df_agrupado["Porcentaje"].round(1).astype(str) + "%)"
                 
-                # --- PESTAÑA 2: POR VENDEDOR ---
-                with tab2:
-                    # Agrupamos por mes y por vendedor
-                    df_vendedor = df_graficos.groupby(["Mes_Ingreso", "Vendedor"]).size().reset_index(name="Cantidad")
-                    
-                    fig_vendedor = px.bar(
-                        df_vendedor, 
-                        x="Mes_Ingreso", 
-                        y="Cantidad", 
-                        color="Vendedor", 
-                        barmode="group", # Muestra las barras de los vendedores una al lado de la otra
-                        text="Cantidad",
-                        labels={"Mes_Ingreso": "Mes de Ingreso a CISA", "Cantidad": "Volumen Aprobado", "Vendedor": "Asesor Comercial"}
-                    )
-                    fig_vendedor.update_traces(textposition='outside')
-                    fig_vendedor.update_layout(margin=dict(t=40))
-                    st.plotly_chart(fig_vendedor, use_container_width=True)
-                    
+                # Dibujamos el gráfico
+                fig = px.bar(
+                    df_agrupado, 
+                    x="Mes_Ingreso", 
+                    y="Cantidad", 
+                    color="Marca", 
+                    barmode="group",
+                    text="Etiqueta",
+                    color_discrete_map={"PEUGEOT": "#2E86C1", "CITROËN": "#E74C3C"},
+                    labels={"Mes_Ingreso": "Mes de Ingreso a CISA", "Cantidad": "Volumen Aprobado"}
+                )
+                
+                fig.update_traces(textposition='outside')
+                fig.update_layout(margin=dict(t=40))
+                
+                st.plotly_chart(fig, use_container_width=True)
             else:
                 st.warning("Hay operaciones 'Aceptadas', pero sus fechas de CISA tienen un formato no válido.")
         else:
