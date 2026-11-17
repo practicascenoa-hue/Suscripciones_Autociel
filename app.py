@@ -14,7 +14,6 @@ def cargar_datos(url):
     df.columns = df.columns.str.strip()
     return df
 
-# Título actualizado
 st.title("📊 Tablero de Suscripciones")
 st.divider()
 
@@ -66,24 +65,28 @@ try:
     # -------------------------------------------------------------------------------
 
     if not df.empty:
-        # ---------------- FILTROS GLOBALES (FRONTEND) ----------------
+        # ---------------- FILTROS GLOBALES (FRONTEND) MULTISELECCIÓN ----------------
         st.subheader("🔍 Filtros Globales")
         col_filtro1, col_filtro2 = st.columns(2)
         
         with col_filtro1:
-            años_disponibles = ["Todos"] + sorted(df["Año"].unique().tolist())
-            año_sel = st.selectbox("📅 Seleccionar Año:", años_disponibles)
+            años_disponibles = sorted(df["Año"].unique().tolist())
+            años_sel = st.multiselect("📅 Seleccionar Año (dejá en blanco para todos):", años_disponibles)
             
         with col_filtro2:
-            meses_disponibles = ["Todos"] + sorted(df["Mes"].unique().tolist())
-            mes_sel = st.selectbox("📆 Seleccionar Mes:", meses_disponibles)
+            meses_disponibles = sorted(df["Mes"].unique().tolist())
+            meses_sel = st.multiselect("📆 Seleccionar Mes (dejá en blanco para todos):", meses_disponibles)
 
         # Aplicamos los filtros a la base de datos
         df_filtrado = df.copy()
-        if año_sel != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Año"] == año_sel]
-        if mes_sel != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Mes"] == mes_sel]
+        
+        # Si eligieron al menos un año, filtramos
+        if años_sel:
+            df_filtrado = df_filtrado[df_filtrado["Año"].isin(años_sel)]
+            
+        # Si eligieron al menos un mes, filtramos
+        if meses_sel:
+            df_filtrado = df_filtrado[df_filtrado["Mes"].isin(meses_sel)]
             
         st.success(f"✅ Mostrando {len(df_filtrado)} operaciones aprobadas y con fecha válida.")
         st.divider()
@@ -139,7 +142,7 @@ try:
                 
                 st.plotly_chart(fig_ranking, use_container_width=True)
         else:
-            st.warning("No hay operaciones para el año y mes seleccionados en los filtros.")
+            st.warning("No hay operaciones para la combinación de filtros seleccionada.")
 
         st.divider()
 
