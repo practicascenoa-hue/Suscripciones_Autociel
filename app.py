@@ -15,7 +15,6 @@ def cargar_datos(url):
     df.columns = df.columns.str.strip()
     return df
 
-# Le quitamos el caché a los objetivos temporalmente para forzar la lectura en vivo
 def cargar_objetivos(url):
     try:
         df_obj = pd.read_csv(url, header=None)
@@ -27,8 +26,8 @@ def cargar_objetivos(url):
         df_obj.columns = df_obj.iloc[fila_header].astype(str).str.strip().str.upper()
         df_obj = df_obj.iloc[fila_header + 1:].copy()
         
-        # Encontramos dinámicamente las columnas de marca 
-        cols_marcas = [c for c in df_obj.columns if "PEUGEOT" in c or "CITR" in c]
+        # FIX CRÍTICO DEL ERROR AMARILLO: Forzamos a que 'c' sea un string antes de buscarle palabras
+        cols_marcas = [c for c in df_obj.columns if "PEUGEOT" in str(c) or "CITR" in str(c)]
         cols = ["AÑO", "MES"] + cols_marcas
         df_obj = df_obj[cols].copy()
         
@@ -54,7 +53,6 @@ def cargar_objetivos(url):
         
         return df_obj, ""
     except Exception as e:
-        # Devolvemos el error para imprimirlo en pantalla y no trabajar a ciegas
         return pd.DataFrame(columns=["Mes_Ingreso", "Marca", "Objetivo"]), str(e)
 
 st.title("📊 Tablero de Suscripciones")
@@ -112,7 +110,6 @@ try:
     # -------------------------------------------------------------------------------
 
     if not df.empty:
-        # Alarma visual si fallan los objetivos
         if error_obj:
             st.warning(f"⚠️ No se pudieron cargar los objetivos. Error detectado: {error_obj}")
             
