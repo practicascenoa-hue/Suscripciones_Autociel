@@ -15,7 +15,7 @@ def cargar_datos(url):
     df.columns = df.columns.str.strip()
     return df
 
-@st.cache_data(ttl=60)
+# Le quitamos el caché a los objetivos temporalmente para forzar la lectura en vivo
 def cargar_objetivos(url):
     try:
         df_obj = pd.read_csv(url, header=None)
@@ -32,17 +32,17 @@ def cargar_objetivos(url):
         cols = ["AÑO", "MES"] + cols_marcas
         df_obj = df_obj[cols].copy()
         
-        # LECTURA A PRUEBA DE BALAS: Convertimos a números obligando a descartar vacíos o texto basura
+        # Convertimos a números obligando a descartar vacíos o texto basura
         df_obj["AÑO"] = pd.to_numeric(df_obj["AÑO"], errors="coerce")
         df_obj["MES"] = pd.to_numeric(df_obj["MES"], errors="coerce")
         df_obj = df_obj.dropna(subset=["AÑO", "MES"])
         
-        # Formato final
+        # Formato final exacto para cruzar (Ej: "2026-10")
         df_obj["AÑO"] = df_obj["AÑO"].astype(int).astype(str)
         df_obj["MES"] = df_obj["MES"].astype(int).astype(str).str.zfill(2)
         df_obj["Mes_Ingreso"] = df_obj["AÑO"] + "-" + df_obj["MES"]
         
-        # Melt
+        # Transformamos la tabla para cruzarla con el gráfico
         df_obj = df_obj.melt(id_vars=["Mes_Ingreso"], value_vars=cols_marcas, 
                              var_name="Marca", value_name="Objetivo")
         
@@ -52,9 +52,10 @@ def cargar_objetivos(url):
         
         df_obj["Objetivo"] = pd.to_numeric(df_obj["Objetivo"], errors="coerce").fillna(0)
         
-        return df_obj
+        return df_obj, ""
     except Exception as e:
-        return pd.DataFrame(columns=["Mes_Ingreso", "Marca", "Objetivo"])
+        # Devolvemos el error para imprimirlo en pantalla y no trabajar a ciegas
+        return pd.DataFrame(columns=["Mes_Ingreso", "Marca", "Objetivo"]), str(e)
 
 st.title("📊 Tablero de Suscripciones")
 st.divider()
@@ -62,7 +63,7 @@ st.divider()
 # Cargamos los datos
 try:
     df = cargar_datos(URL_DATOS)
-    df_objetivos = cargar_objetivos(URL_OBJETIVOS)
+    df_objetivos, error_obj = cargar_objetivos(URL_OBJETIVOS)
     
     # ---------------- LIMPIEZA Y TRANSFORMACIÓN (BACKEND INVISIBLE) ----------------
     
@@ -111,6 +112,10 @@ try:
     # -------------------------------------------------------------------------------
 
     if not df.empty:
+        # Alarma visual si fallan los objetivos
+        if error_obj:
+            st.warning(f"⚠️ No se pudieron cargar los objetivos. Error detectado: {error_obj}")
+            
         # ---------------- FILTROS GLOBALES ----------------
         st.subheader("🔍 Filtros Globales")
         col_filtro1, col_filtro2 = st.columns(2)
@@ -174,7 +179,7 @@ try:
                 )
                 fig_marca.update_traces(textposition='outside')
                 
-                # Agregamos líneas de objetivos y CORREGIMOS EL EJE X
+                # Agregamos líneas de objetivos
                 colores_lineas = {"PEUGEOT": "#1A5276", "CITROËN": "#78281F"}
                 
                 for marca in df_marca["Marca"].unique():
@@ -189,7 +194,6 @@ try:
                             marker=dict(size=10, symbol="diamond")
                         )
 
-                # Fix crítico para que el eje X no invente horas
                 fig_marca.update_xaxes(type='category')
                 fig_marca.update_layout(margin=dict(t=20), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 
