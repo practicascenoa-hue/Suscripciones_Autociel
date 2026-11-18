@@ -142,16 +142,27 @@ try:
                 df_marca["Excedente"] = df_marca.apply(lambda row: max(0, row["Cantidad"] - row["Objetivo"]) if row["Objetivo"] > 0 else 0, axis=1)
 
                 # Definimos los colores por marca
-                color_peugeot_solido = "rgba(46, 134, 193, 1)"      # Azul sólido
-                color_peugeot_claro = "rgba(46, 134, 193, 0.25)"    # Azul marca de agua
-                color_citroen_solido = "rgba(231, 76, 60, 1)"       # Rojo sólido
-                color_citroen_claro = "rgba(231, 76, 60, 0.25)"     # Rojo marca de agua
+                color_peugeot_solido = "rgba(46, 134, 193, 1)"      
+                color_peugeot_claro = "rgba(46, 134, 193, 0.25)"    
+                color_citroen_solido = "rgba(231, 76, 60, 1)"       
+                color_citroen_claro = "rgba(231, 76, 60, 0.25)"     
 
                 df_marca["Color_Base"] = df_marca["Marca"].map({"PEUGEOT": color_peugeot_solido, "CITROËN": color_citroen_solido})
                 df_marca["Color_Faltante"] = df_marca["Marca"].map({"PEUGEOT": color_peugeot_claro, "CITROËN": color_citroen_claro})
 
-                fig_marca = go.Figure()
+                # Generar etiqueta combinada: Cantidad (Porcentaje%)
+                def generar_etiqueta(row):
+                    if row["Cantidad"] == 0:
+                        return ""
+                    if row["Objetivo"] > 0:
+                        pct = (row["Cantidad"] / row["Objetivo"]) * 100
+                        return f"{int(row['Cantidad'])} ({pct:.0f}%)"
+                    else:
+                        return str(int(row["Cantidad"]))
+                        
+                df_marca["Etiqueta_Principal"] = df_marca.apply(generar_etiqueta, axis=1)
 
+                fig_marca = go.Figure()
                 eje_x_agrupado = [df_marca["Mes_Ingreso"], df_marca["Marca"]]
 
                 # 1. Barra Sólida (Base Ejecutada)
@@ -160,8 +171,8 @@ try:
                     y=df_marca["Base"],
                     name="Realizado",
                     marker_color=df_marca["Color_Base"],
-                    # Solo muestra la cantidad total si NO hay excedente (para no duplicar números)
-                    text=df_marca.apply(lambda row: str(int(row["Cantidad"])) if row["Excedente"] == 0 and row["Cantidad"] > 0 else "", axis=1),
+                    # Muestra la etiqueta solo si no hay excedente
+                    text=df_marca.apply(lambda row: row["Etiqueta_Principal"] if row["Excedente"] == 0 else "", axis=1),
                     textposition="inside",
                     insidetextfont=dict(color="white", size=14, weight="bold"),
                     showlegend=False,
@@ -175,7 +186,7 @@ try:
                     name="Faltante",
                     marker_color=df_marca["Color_Faltante"],
                     marker_line=dict(color=df_marca["Color_Base"], width=1.5),
-                    text=[""] * len(df_marca), # Sin texto en el faltante
+                    text=[""] * len(df_marca),
                     textposition="inside",
                     showlegend=False,
                     hoverinfo="y+name"
@@ -187,26 +198,23 @@ try:
                     y=df_marca["Excedente"],
                     name="Sobre Ejecución",
                     marker_color=df_marca["Color_Base"],
-                    # Solo muestra el total acá si hubo excedente, así queda en la cima de la barra
-                    text=df_marca.apply(lambda row: str(int(row["Cantidad"])) if row["Excedente"] > 0 else "", axis=1),
+                    # Muestra la etiqueta acá si superaron el objetivo
+                    text=df_marca.apply(lambda row: row["Etiqueta_Principal"] if row["Excedente"] > 0 else "", axis=1),
                     textposition="inside",
                     insidetextfont=dict(color="white", size=14, weight="bold"),
                     showlegend=False,
                     hoverinfo="y+name"
                 ))
 
-                # 4. Línea negra horizontal para la Meta (se posiciona en el tope)
+                # 4. Línea negra horizontal para la Meta (Sin texto)
                 df_obj_validos = df_marca[df_marca["Objetivo"] > 0]
                 if not df_obj_validos.empty:
                     fig_marca.add_trace(go.Scatter(
                         x=[df_obj_validos["Mes_Ingreso"], df_obj_validos["Marca"]],
                         y=df_obj_validos["Objetivo"],
-                        mode="markers+text",
+                        mode="markers", # Retirado el texto de arriba
                         name="Objetivo",
-                        text=[str(int(obj)) for obj in df_obj_validos["Objetivo"]], # Solo el número
-                        textposition="top center",
                         marker=dict(symbol="line-ew", size=45, line=dict(color="black", width=4)),
-                        textfont=dict(color="black", size=13, weight="bold"),
                         hoverinfo="skip",
                         showlegend=False
                     ))
@@ -220,63 +228,4 @@ try:
                 fig_marca.update_layout(
                     barmode="stack",
                     margin=dict(t=30),
-                    legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1, title=""),
-                    xaxis=dict(title="")
-                )
-                
-                st.plotly_chart(fig_marca, use_container_width=True)
-
-            with col_graf2:
-                st.markdown("### 🏆 Ranking de Ventas")
-                df_ranking = df_filtrado.groupby("Vendedor_Limpio").size().reset_index(name="Cantidad")
-                
-                df_ranking = df_ranking.sort_values(by="Cantidad", ascending=True)
-                df_ranking["Etiqueta_Barra"] = df_ranking["Vendedor_Limpio"] + " (" + df_ranking["Cantidad"].astype(str) + ")"
-
-                fig_ranking = px.bar(
-                    df_ranking, 
-                    x="Cantidad", 
-                    y="Vendedor_Limpio", 
-                    orientation='h',
-                    text="Etiqueta_Barra",
-                    labels={"Cantidad": "Volumen Aprobado", "Vendedor_Limpio": ""},
-                    color_discrete_sequence=["#27AE60"]
-                )
-                
-                fig_ranking.update_traces(textposition='inside', insidetextanchor='middle', textfont=dict(color="white", size=14))
-                fig_ranking.update_yaxes(showticklabels=False)
-                fig_ranking.update_layout(
-                    margin=dict(t=30),
-                    clickmode='event+select'
-                )
-                
-                seleccion = st.plotly_chart(fig_ranking, use_container_width=True, on_select="rerun")
-                
-                vendedor_seleccionado = None
-                if seleccion and seleccion.get("selection") and seleccion["selection"].get("points"):
-                    vendedor_seleccionado = seleccion["selection"]["points"][0]["y"]
-
-        st.divider()
-
-        # ---------------- TABLA DE DETALLES FINAL ----------------
-        st.subheader("📋 Detalle de Operaciones")
-        
-        df_tabla = df_filtrado.copy()
-        
-        if vendedor_seleccionado:
-            df_tabla = df_tabla[df_tabla["Vendedor_Limpio"] == vendedor_seleccionado]
-            st.info(f"🔎 Filtrando tabla inferior por el vendedor seleccionado: **{vendedor_seleccionado}**. (Para ver todos, hacé clic en el espacio en blanco del gráfico de ranking).")
-        
-        columnas_deseadas = [
-            "Marca", "Tipo de Solicitud", "Vendedor_Limpio", "FECHA CONFIRMACION CLIENTE", 
-            "cliente", "localidad", "Fecha de TMK", "TMK", "Fecha  de Ingreso en CISA", "ESTADO"
-        ]
-        columnas_finales = [col for col in columnas_deseadas if col in df_tabla.columns]
-        
-        st.dataframe(df_tabla[columnas_finales].sort_values(by="Fecha  de Ingreso en CISA", ascending=False), use_container_width=True, hide_index=True)
-        
-    else:
-        st.warning("Actualmente no hay registros en la base de datos que cumplan las condiciones estrictas (Aceptados y con fecha).")
-        
-except Exception as e:
-    st.error(f"Error al cargar los datos: {e}")
+                    legend=dict(orientation
