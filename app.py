@@ -136,68 +136,56 @@ try:
                 else:
                     df_marca["Objetivo"] = 0
                 
-                # --- NUEVA LÓGICA DE APILADO (Base, Faltante, Excedente) ---
-                df_marca["Base"] = df_marca.apply(lambda row: min(row["Cantidad"], row["Objetivo"]) if row["Objetivo"] > 0 else row["Cantidad"], axis=1)
-                df_marca["Faltante"] = df_marca.apply(lambda row: max(0, row["Objetivo"] - row["Cantidad"]) if row["Objetivo"] > 0 else 0, axis=1)
-                df_marca["Excedente"] = df_marca.apply(lambda row: max(0, row["Cantidad"] - row["Objetivo"]) if row["Objetivo"] > 0 else 0, axis=1)
-
-                fig_marca = go.Figure()
-
-                # Eje X con doble nivel (Mes y Marca)
-                eje_x_agrupado = [df_marca["Mes_Ingreso"], df_marca["Marca"]]
-
-                # 1. Barra Gris (Base Ejecutada)
-                fig_marca.add_trace(go.Bar(
-                    x=eje_x_agrupado,
-                    y=df_marca["Base"],
-                    name="Ejecutado (Base)",
-                    marker_color="#D3D3D3",
-                    text=df_marca["Base"].apply(lambda x: str(int(x)) if x > 0 else ""),
-                    textposition="inside",
-                    insidetextfont=dict(color="black", size=14, weight="bold")
-                ))
-
-                # 2. Barra Roja (Faltante para la meta)
-                fig_marca.add_trace(go.Bar(
-                    x=eje_x_agrupado,
-                    y=df_marca["Faltante"],
-                    name="No Cumplimiento",
-                    marker_color="#E74C3C",
-                    text=df_marca["Faltante"].apply(lambda x: str(int(x)) if x > 0 else ""),
-                    textposition="inside",
-                    insidetextfont=dict(color="white", size=14, weight="bold")
-                ))
-
-                # 3. Barra Azul (Sobre Ejecución)
-                fig_marca.add_trace(go.Bar(
-                    x=eje_x_agrupado,
-                    y=df_marca["Excedente"],
-                    name="Sobre Ejecución",
-                    marker_color="#5DADE2",
-                    text=df_marca["Excedente"].apply(lambda x: str(int(x)) if x > 0 else ""),
-                    textposition="inside",
-                    insidetextfont=dict(color="white", size=14, weight="bold")
-                ))
-
-                # 4. Línea negra horizontal para la Meta (como en la imagen de Excel)
-                df_obj_validos = df_marca[df_marca["Objetivo"] > 0]
-                if not df_obj_validos.empty:
-                    fig_marca.add_trace(go.Scatter(
-                        x=[df_obj_validos["Mes_Ingreso"], df_obj_validos["Marca"]],
-                        y=df_obj_validos["Objetivo"],
-                        mode="markers",
-                        name="Meta",
-                        marker=dict(symbol="line-ew", size=45, line=dict(color="black", width=4)), # Dibuja una línea horizontal en cada barra
-                        hoverinfo="skip"
-                    ))
-
-                # Configuramos para que se apilen y se ajusten los márgenes
-                fig_marca.update_layout(
-                    barmode="stack",
-                    margin=dict(t=30),
-                    legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
-                    xaxis=dict(title="")
+                totales_mes = df_marca.groupby("Mes_Ingreso")["Cantidad"].transform("sum")
+                df_marca["Porcentaje"] = (df_marca["Cantidad"] / totales_mes) * 100
+                
+                df_marca["Etiqueta"] = df_marca["Cantidad"].astype(str) + " (" + df_marca["Porcentaje"].round(1).astype(str) + "%)"
+                
+                # Gráfico de barras original por Marca (Rojo Citroën, Azul Peugeot)
+                fig_marca = px.bar(
+                    df_marca, 
+                    x="Mes_Ingreso", 
+                    y="Cantidad", 
+                    color="Marca", 
+                    barmode="group",
+                    text="Etiqueta",
+                    color_discrete_map={"PEUGEOT": "#0078D7", "CITROËN": "#E81123"}, # Tonos vibrantes como en el dibujo
+                    labels={"Mes_Ingreso": "Mes", "Cantidad": "Suscripciones"}
                 )
+                
+                # Ubicamos el texto adentro para que no choque con la línea de la meta
+                fig_marca.update_traces(textposition='inside', insidetextfont=dict(color="white", size=13, weight="bold"))
+                
+                # --- Línea negra para el objetivo sobre cada barra respectiva ---
+                df_obj_validos = df_marca[df_marca["Objetivo"] > 0]
+                
+                if not df_obj_validos.empty:
+                    for marca in df_obj_validos["Marca"].unique():
+                        df_obj_marca = df_obj_validos[df_obj_validos["Marca"] == marca]
+                        
+                        fig_marca.add_trace(
+                            go.Scatter(
+                                x=df_obj_marca["Mes_Ingreso"],
+                                y=df_obj_marca["Objetivo"],
+                                mode='markers+text',
+                                name=f"Meta {marca}",
+                                offsetgroup=marca, # Centra la línea exactamente sobre su barra
+                                text=["Meta: " + str(int(obj)) for obj in df_obj_marca["Objetivo"]],
+                                textposition="top center",
+                                marker=dict(
+                                    symbol="line-ew", 
+                                    size=45, # Ancho de la línea negra
+                                    color="black",
+                                    line=dict(color="black", width=4) # Grosor de la línea
+                                ),
+                                textfont=dict(color="black", size=13, weight="bold"),
+                                showlegend=False,
+                                hoverinfo="skip"
+                            )
+                        )
+
+                fig_marca.update_xaxes(type='category')
+                fig_marca.update_layout(margin=dict(t=30), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 
                 st.plotly_chart(fig_marca, use_container_width=True)
 
@@ -227,31 +215,4 @@ try:
                 
                 seleccion = st.plotly_chart(fig_ranking, use_container_width=True, on_select="rerun")
                 
-                vendedor_seleccionado = None
-                if seleccion and seleccion.get("selection") and seleccion["selection"].get("points"):
-                    vendedor_seleccionado = seleccion["selection"]["points"][0]["y"]
-
-        st.divider()
-
-        # ---------------- TABLA DE DETALLES FINAL ----------------
-        st.subheader("📋 Detalle de Operaciones")
-        
-        df_tabla = df_filtrado.copy()
-        
-        if vendedor_seleccionado:
-            df_tabla = df_tabla[df_tabla["Vendedor_Limpio"] == vendedor_seleccionado]
-            st.info(f"🔎 Filtrando tabla inferior por el vendedor seleccionado: **{vendedor_seleccionado}**. (Para ver todos, hacé clic en el espacio en blanco del gráfico de ranking).")
-        
-        columnas_deseadas = [
-            "Marca", "Tipo de Solicitud", "Vendedor_Limpio", "FECHA CONFIRMACION CLIENTE", 
-            "cliente", "localidad", "Fecha de TMK", "TMK", "Fecha  de Ingreso en CISA", "ESTADO"
-        ]
-        columnas_finales = [col for col in columnas_deseadas if col in df_tabla.columns]
-        
-        st.dataframe(df_tabla[columnas_finales].sort_values(by="Fecha  de Ingreso en CISA", ascending=False), use_container_width=True, hide_index=True)
-        
-    else:
-        st.warning("Actualmente no hay registros en la base de datos que cumplan las condiciones estrictas (Aceptados y con fecha).")
-        
-except Exception as e:
-    st.error(f"Error al cargar los datos: {e}")
+                vendedor_seleccionado
