@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go # Necesario para agregar los puntos de objetivo
+import plotly.graph_objects as go
 
 # Configuración de la página
 st.set_page_config(page_title="Suscripciones Autociel", layout="wide")
@@ -123,7 +123,6 @@ try:
         
         if not df_filtrado.empty:
             
-            # --- GRÁFICOS INFERIORES ---
             col_graf1, col_graf2 = st.columns(2)
             
             with col_graf1:
@@ -154,7 +153,7 @@ try:
                 )
                 fig_marca.update_traces(textposition='outside')
                 
-                # --- Puntos de objetivo por mes ---
+                # --- Puntos de objetivo por mes (Centrados en cada barra) ---
                 df_obj_validos = df_marca[df_marca["Objetivo"] > 0]
                 
                 if not df_obj_validos.empty:
@@ -165,16 +164,17 @@ try:
                             go.Scatter(
                                 x=df_obj_marca["Mes_Ingreso"],
                                 y=df_obj_marca["Objetivo"],
-                                mode='markers+text', # Solo puntos y texto, sin líneas
+                                mode='markers+text',
                                 name=f"Obj. {marca}",
-                                text=df_obj_marca["Objetivo"].astype(int),
+                                offsetgroup=marca, # Esta propiedad empuja el punto para alinearlo con su barra
+                                text=["🎯 " + str(int(obj)) for obj in df_obj_marca["Objetivo"]], # Icono + número
                                 textposition="top center",
                                 marker=dict(
-                                    size=12,             # Puntos un poco más grandes para destacar
-                                    color="#F1C40F",     # Amarillo
-                                    symbol="diamond"     # Forma de diamante
+                                    size=12,
+                                    color="white", # Punto blanco
+                                    symbol="diamond"
                                 ),
-                                textfont=dict(color="#B7950B", size=13, weight="bold"),
+                                textfont=dict(color="white", size=15, weight="bold"), # Texto blanco y en negrita
                                 showlegend=True
                             )
                         )
@@ -205,16 +205,13 @@ try:
                 fig_ranking.update_yaxes(showticklabels=False)
                 fig_ranking.update_layout(
                     margin=dict(t=20),
-                    clickmode='event+select' # Habilita la selección
+                    clickmode='event+select'
                 )
                 
-                # Renderizamos el gráfico capturando el evento de clic con on_select
                 seleccion = st.plotly_chart(fig_ranking, use_container_width=True, on_select="rerun")
                 
-                # Extraemos el vendedor seleccionado (si se hizo clic en alguna barra)
                 vendedor_seleccionado = None
                 if seleccion and seleccion.get("selection") and seleccion["selection"].get("points"):
-                    # El valor "y" corresponde a la categoría (Vendedor_Limpio) en gráficos horizontales
                     vendedor_seleccionado = seleccion["selection"]["points"][0]["y"]
 
         st.divider()
@@ -224,7 +221,6 @@ try:
         
         df_tabla = df_filtrado.copy()
         
-        # Si hay un vendedor seleccionado desde el gráfico, filtramos la tabla
         if vendedor_seleccionado:
             df_tabla = df_tabla[df_tabla["Vendedor_Limpio"] == vendedor_seleccionado]
             st.info(f"🔎 Filtrando tabla inferior por el vendedor seleccionado: **{vendedor_seleccionado}**. (Para ver todos, hacé clic en el espacio en blanco del gráfico de ranking).")
