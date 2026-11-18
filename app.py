@@ -165,15 +165,15 @@ try:
                 fig_marca = go.Figure()
                 eje_x_agrupado = [df_marca["Mes_Ingreso"], df_marca["Marca"]]
 
-                # 1. Barra Sólida (Base Ejecutada) -> ACÁ PONEMOS EL TEXTO SIEMPRE
+                # 1. Barra Sólida (Base Ejecutada)
                 fig_marca.add_trace(go.Bar(
                     x=eje_x_agrupado,
                     y=df_marca["Base"],
                     name="Realizado",
                     marker_color=df_marca["Color_Base"],
-                    text=df_marca["Etiqueta_Principal"], # Todas las etiquetas van acá
-                    textposition="inside", # Forzamos que quede adentro
-                    insidetextanchor="middle", # Forzamos que quede exactamente en el medio vertical
+                    text=df_marca["Etiqueta_Principal"],
+                    textposition="inside", 
+                    insidetextanchor="middle", 
                     insidetextfont=dict(color="white", size=13, weight="bold"),
                     showlegend=False,
                     hoverinfo="y+name"
@@ -186,32 +186,44 @@ try:
                     name="Faltante",
                     marker_color=df_marca["Color_Faltante"],
                     marker_line=dict(color=df_marca["Color_Base"], width=1.5),
-                    text=[""] * len(df_marca), # Sin texto
+                    text=[""] * len(df_marca),
                     textposition="inside",
                     showlegend=False,
                     hoverinfo="y+name"
                 ))
 
-                # 3. Barra Sólida (Sobre Ejecución) -> LE SACAMOS EL TEXTO PARA QUE NO VUELE
+                # 3. Barra Sólida (Sobre Ejecución)
                 fig_marca.add_trace(go.Bar(
                     x=eje_x_agrupado,
                     y=df_marca["Excedente"],
                     name="Sobre Ejecución",
                     marker_color=df_marca["Color_Base"],
-                    text=[""] * len(df_marca), # Sin texto, el número ya se dibujó en la Base
+                    text=[""] * len(df_marca), 
                     showlegend=False,
                     hoverinfo="y+name"
                 ))
 
-                # 4. Línea negra horizontal para la Meta
+                # 4. Línea negra horizontal para la Meta (AHORA CON TAMAÑO DINÁMICO)
                 df_obj_validos = df_marca[df_marca["Objetivo"] > 0]
                 if not df_obj_validos.empty:
+                    
+                    # Lógica para achicar o agrandar la línea según la cantidad de meses
+                    meses_mostrados = df_marca["Mes_Ingreso"].nunique()
+                    if meses_mostrados <= 3:
+                        size_linea = 45
+                    elif meses_mostrados <= 6:
+                        size_linea = 28
+                    elif meses_mostrados <= 9:
+                        size_linea = 20
+                    else:
+                        size_linea = 15
+                        
                     fig_marca.add_trace(go.Scatter(
                         x=[df_obj_validos["Mes_Ingreso"], df_obj_validos["Marca"]],
                         y=df_obj_validos["Objetivo"],
                         mode="markers", 
                         name="Objetivo",
-                        marker=dict(symbol="line-ew", size=45, line=dict(color="black", width=4)),
+                        marker=dict(symbol="line-ew", size=size_linea, line=dict(color="black", width=4)),
                         hoverinfo="skip",
                         showlegend=False
                     ))
@@ -227,8 +239,8 @@ try:
                     margin=dict(t=40),
                     legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1, title=""),
                     xaxis=dict(title=""),
-                    uniformtext_minsize=12,        # <-- Clave: Tamaño mínimo para el texto
-                    uniformtext_mode='show'        # <-- Clave: Prohíbe esconder el texto aunque la barra sea mínima
+                    uniformtext_minsize=12,        
+                    uniformtext_mode='show'        
                 )
                 
                 st.plotly_chart(fig_marca, use_container_width=True)
