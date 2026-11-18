@@ -141,7 +141,7 @@ try:
                 df_marca["Faltante"] = df_marca.apply(lambda row: max(0, row["Objetivo"] - row["Cantidad"]) if row["Objetivo"] > 0 else 0, axis=1)
                 df_marca["Excedente"] = df_marca.apply(lambda row: max(0, row["Cantidad"] - row["Objetivo"]) if row["Objetivo"] > 0 else 0, axis=1)
 
-                # Definimos los colores por marca (Sólidos para lo vendido, Transparentes para el faltante)
+                # Definimos los colores por marca
                 color_peugeot_solido = "rgba(46, 134, 193, 1)"      # Azul sólido
                 color_peugeot_claro = "rgba(46, 134, 193, 0.25)"    # Azul marca de agua
                 color_citroen_solido = "rgba(231, 76, 60, 1)"       # Rojo sólido
@@ -152,43 +152,43 @@ try:
 
                 fig_marca = go.Figure()
 
-                # Eje X con doble nivel (Agrupa automáticamente por Mes y luego por Marca)
                 eje_x_agrupado = [df_marca["Mes_Ingreso"], df_marca["Marca"]]
 
-                # 1. Barra Sólida (Base Ejecutada - Lo que ya se vendió hasta llegar a la meta)
+                # 1. Barra Sólida (Base Ejecutada)
                 fig_marca.add_trace(go.Bar(
                     x=eje_x_agrupado,
                     y=df_marca["Base"],
                     name="Realizado",
                     marker_color=df_marca["Color_Base"],
-                    text=df_marca["Base"].apply(lambda x: str(int(x)) if x > 0 else ""),
+                    # Solo muestra la cantidad total si NO hay excedente (para no duplicar números)
+                    text=df_marca.apply(lambda row: str(int(row["Cantidad"])) if row["Excedente"] == 0 and row["Cantidad"] > 0 else "", axis=1),
                     textposition="inside",
                     insidetextfont=dict(color="white", size=14, weight="bold"),
                     showlegend=False,
                     hoverinfo="y+name"
                 ))
 
-                # 2. Barra Clara / Marca de agua (Faltante para llegar a la meta)
+                # 2. Barra Clara (Faltante para llegar a la meta)
                 fig_marca.add_trace(go.Bar(
                     x=eje_x_agrupado,
                     y=df_marca["Faltante"],
                     name="Faltante",
                     marker_color=df_marca["Color_Faltante"],
-                    marker_line=dict(color=df_marca["Color_Base"], width=1.5), # Borde sólido del color de la marca
-                    text=df_marca["Faltante"].apply(lambda x: str(int(x)) if x > 0 else ""),
+                    marker_line=dict(color=df_marca["Color_Base"], width=1.5),
+                    text=[""] * len(df_marca), # Sin texto en el faltante
                     textposition="inside",
-                    insidetextfont=dict(color="black", size=14, weight="bold"), # Texto negro para destacar sobre fondo claro
                     showlegend=False,
                     hoverinfo="y+name"
                 ))
 
-                # 3. Barra Sólida (Sobre Ejecución - Si se superó la meta)
+                # 3. Barra Sólida (Sobre Ejecución)
                 fig_marca.add_trace(go.Bar(
                     x=eje_x_agrupado,
                     y=df_marca["Excedente"],
                     name="Sobre Ejecución",
-                    marker_color=df_marca["Color_Base"], # Mismo color sólido
-                    text=df_marca["Excedente"].apply(lambda x: "+" + str(int(x)) if x > 0 else ""),
+                    marker_color=df_marca["Color_Base"],
+                    # Solo muestra el total acá si hubo excedente, así queda en la cima de la barra
+                    text=df_marca.apply(lambda row: str(int(row["Cantidad"])) if row["Excedente"] > 0 else "", axis=1),
                     textposition="inside",
                     insidetextfont=dict(color="white", size=14, weight="bold"),
                     showlegend=False,
@@ -202,11 +202,11 @@ try:
                         x=[df_obj_validos["Mes_Ingreso"], df_obj_validos["Marca"]],
                         y=df_obj_validos["Objetivo"],
                         mode="markers+text",
-                        name="Meta",
-                        text=["Meta " + str(int(obj)) for obj in df_obj_validos["Objetivo"]],
+                        name="Objetivo",
+                        text=[str(int(obj)) for obj in df_obj_validos["Objetivo"]], # Solo el número
                         textposition="top center",
                         marker=dict(symbol="line-ew", size=45, line=dict(color="black", width=4)),
-                        textfont=dict(color="black", size=12, weight="bold"),
+                        textfont=dict(color="black", size=13, weight="bold"),
                         hoverinfo="skip",
                         showlegend=False
                     ))
