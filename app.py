@@ -150,7 +150,7 @@ try:
                 df_marca["Color_Base"] = df_marca["Marca"].map({"PEUGEOT": color_peugeot_solido, "CITROËN": color_citroen_solido})
                 df_marca["Color_Faltante"] = df_marca["Marca"].map({"PEUGEOT": color_peugeot_claro, "CITROËN": color_citroen_claro})
 
-                # Generar etiqueta combinada: Cantidad (Porcentaje%)
+                # Generar etiqueta combinada para todas las barras: Cantidad (Porcentaje%)
                 def generar_etiqueta(row):
                     if row["Cantidad"] == 0:
                         return ""
@@ -165,17 +165,16 @@ try:
                 fig_marca = go.Figure()
                 eje_x_agrupado = [df_marca["Mes_Ingreso"], df_marca["Marca"]]
 
-                # 1. Barra Sólida (Base Ejecutada)
+                # 1. Barra Sólida (Base Ejecutada) -> ACÁ PONEMOS EL TEXTO SIEMPRE
                 fig_marca.add_trace(go.Bar(
                     x=eje_x_agrupado,
                     y=df_marca["Base"],
                     name="Realizado",
                     marker_color=df_marca["Color_Base"],
-                    # Muestra la etiqueta solo si no hay excedente
-                    text=df_marca.apply(lambda row: row["Etiqueta_Principal"] if row["Excedente"] == 0 else "", axis=1),
-                    textposition="auto", # <-- Plotly decide si va horizontal, vertical o afuera
-                    insidetextfont=dict(color="white", size=14, weight="bold"),
-                    outsidetextfont=dict(color="black", size=14, weight="bold"),
+                    text=df_marca["Etiqueta_Principal"], # Todas las etiquetas van acá
+                    textposition="inside", # Forzamos que quede adentro
+                    insidetextanchor="middle", # Forzamos que quede exactamente en el medio vertical
+                    insidetextfont=dict(color="white", size=13, weight="bold"),
                     showlegend=False,
                     hoverinfo="y+name"
                 ))
@@ -187,28 +186,24 @@ try:
                     name="Faltante",
                     marker_color=df_marca["Color_Faltante"],
                     marker_line=dict(color=df_marca["Color_Base"], width=1.5),
-                    text=[""] * len(df_marca),
+                    text=[""] * len(df_marca), # Sin texto
                     textposition="inside",
                     showlegend=False,
                     hoverinfo="y+name"
                 ))
 
-                # 3. Barra Sólida (Sobre Ejecución) 
+                # 3. Barra Sólida (Sobre Ejecución) -> LE SACAMOS EL TEXTO PARA QUE NO VUELE
                 fig_marca.add_trace(go.Bar(
                     x=eje_x_agrupado,
                     y=df_marca["Excedente"],
                     name="Sobre Ejecución",
                     marker_color=df_marca["Color_Base"],
-                    # Muestra la etiqueta acá si superaron el objetivo
-                    text=df_marca.apply(lambda row: row["Etiqueta_Principal"] if row["Excedente"] > 0 else "", axis=1),
-                    textposition="auto", # <-- Plotly decide la mejor posición y rotación
-                    insidetextfont=dict(color="white", size=14, weight="bold"),
-                    outsidetextfont=dict(color="black", size=14, weight="bold"),
+                    text=[""] * len(df_marca), # Sin texto, el número ya se dibujó en la Base
                     showlegend=False,
                     hoverinfo="y+name"
                 ))
 
-                # 4. Línea negra horizontal para la Meta (Sin texto)
+                # 4. Línea negra horizontal para la Meta
                 df_obj_validos = df_marca[df_marca["Objetivo"] > 0]
                 if not df_obj_validos.empty:
                     fig_marca.add_trace(go.Scatter(
@@ -221,17 +216,19 @@ try:
                         showlegend=False
                     ))
 
-                # 5. Trazos falsos (Dummy traces) EXCLUSIVAMENTE para crear una leyenda limpia explicativa
+                # 5. Trazos falsos (Dummy traces) EXCLUSIVAMENTE para crear una leyenda limpia
                 fig_marca.add_trace(go.Bar(x=[None], y=[None], marker_color="rgba(128,128,128,1)", name="Realizado"))
                 fig_marca.add_trace(go.Bar(x=[None], y=[None], marker_color="rgba(128,128,128,0.25)", marker_line=dict(color="rgba(128,128,128,1)", width=1.5), name="Faltante a la Meta"))
                 fig_marca.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="line-ew", size=15, line=dict(color="black", width=3)), name="Objetivo"))
 
-                # Configuramos el apilamiento y los márgenes 
+                # Configuramos el apilamiento, márgenes y forzamos la visibilidad de textos
                 fig_marca.update_layout(
                     barmode="stack",
-                    margin=dict(t=50),
+                    margin=dict(t=40),
                     legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1, title=""),
-                    xaxis=dict(title="")
+                    xaxis=dict(title=""),
+                    uniformtext_minsize=12,        # <-- Clave: Tamaño mínimo para el texto
+                    uniformtext_mode='show'        # <-- Clave: Prohíbe esconder el texto aunque la barra sea mínima
                 )
                 
                 st.plotly_chart(fig_marca, use_container_width=True)
