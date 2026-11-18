@@ -153,7 +153,7 @@ try:
                 )
                 fig_marca.update_traces(textposition='outside')
                 
-                # --- Puntos de objetivo por mes (Centrados en cada barra) ---
+                # --- NUEVA TÉCNICA: Barra invisible para alinear el punto amarillo ---
                 df_obj_validos = df_marca[df_marca["Objetivo"] > 0]
                 
                 if not df_obj_validos.empty:
@@ -161,26 +161,23 @@ try:
                         df_obj_marca = df_obj_validos[df_obj_validos["Marca"] == marca]
                         
                         fig_marca.add_trace(
-                            go.Scatter(
+                            go.Bar(
                                 x=df_obj_marca["Mes_Ingreso"],
                                 y=df_obj_marca["Objetivo"],
-                                mode='markers+text',
+                                offsetgroup=marca, # Esto fuerza la alineación perfecta sobre la barra real
                                 name=f"Obj. {marca}",
-                                offsetgroup=marca, # Esta propiedad empuja el punto para alinearlo con su barra
-                                text=["🎯 " + str(int(obj)) for obj in df_obj_marca["Objetivo"]], # Icono + número
-                                textposition="top center",
-                                marker=dict(
-                                    size=12,
-                                    color="#F1C40F", # <-- Punto amarillo restaurado
-                                    symbol="diamond"
-                                ),
-                                textfont=dict(color="white", size=15, weight="bold"), # Texto e ícono blancos
-                                showlegend=True
+                                # Punto amarillo + Icono de objetivo + Número, todo de blanco
+                                text=["<span style='color:#F1C40F'>●</span> 🎯 " + str(int(obj)) for obj in df_obj_marca["Objetivo"]],
+                                textposition="outside",
+                                textfont=dict(color="white", size=15, weight="bold"),
+                                marker=dict(color='rgba(0,0,0,0)', line=dict(width=0)), # Hace la barra 100% transparente
+                                showlegend=False,
+                                hoverinfo="skip"
                             )
                         )
 
                 fig_marca.update_xaxes(type='category')
-                fig_marca.update_layout(margin=dict(t=20), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                fig_marca.update_layout(margin=dict(t=30), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 
                 st.plotly_chart(fig_marca, use_container_width=True)
 
@@ -204,7 +201,7 @@ try:
                 fig_ranking.update_traces(textposition='inside', insidetextanchor='middle', textfont=dict(color="white", size=14))
                 fig_ranking.update_yaxes(showticklabels=False)
                 fig_ranking.update_layout(
-                    margin=dict(t=20),
+                    margin=dict(t=30),
                     clickmode='event+select'
                 )
                 
