@@ -215,4 +215,31 @@ try:
                 
                 seleccion = st.plotly_chart(fig_ranking, use_container_width=True, on_select="rerun")
                 
-                vendedor_seleccionado
+                vendedor_seleccionado = None
+                if seleccion and seleccion.get("selection") and seleccion["selection"].get("points"):
+                    vendedor_seleccionado = seleccion["selection"]["points"][0]["y"]
+
+        st.divider()
+
+        # ---------------- TABLA DE DETALLES FINAL ----------------
+        st.subheader("📋 Detalle de Operaciones")
+        
+        df_tabla = df_filtrado.copy()
+        
+        if vendedor_seleccionado:
+            df_tabla = df_tabla[df_tabla["Vendedor_Limpio"] == vendedor_seleccionado]
+            st.info(f"🔎 Filtrando tabla inferior por el vendedor seleccionado: **{vendedor_seleccionado}**. (Para ver todos, hacé clic en el espacio en blanco del gráfico de ranking).")
+        
+        columnas_deseadas = [
+            "Marca", "Tipo de Solicitud", "Vendedor_Limpio", "FECHA CONFIRMACION CLIENTE", 
+            "cliente", "localidad", "Fecha de TMK", "TMK", "Fecha  de Ingreso en CISA", "ESTADO"
+        ]
+        columnas_finales = [col for col in columnas_deseadas if col in df_tabla.columns]
+        
+        st.dataframe(df_tabla[columnas_finales].sort_values(by="Fecha  de Ingreso en CISA", ascending=False), use_container_width=True, hide_index=True)
+        
+    else:
+        st.warning("Actualmente no hay registros en la base de datos que cumplan las condiciones estrictas (Aceptados y con fecha).")
+        
+except Exception as e:
+    st.error(f"Error al cargar los datos: {e}")
