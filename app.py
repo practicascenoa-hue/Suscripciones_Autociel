@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go # <-- Nueva librería para el medidor
 
 # Configuración de la página
 st.set_page_config(page_title="Suscripciones Autociel", layout="wide")
@@ -48,38 +47,6 @@ def cargar_objetivos(url):
         return df_obj, ""
     except Exception as e:
         return pd.DataFrame(columns=["Mes_Ingreso", "Marca", "Objetivo"]), str(e)
-
-# --- FUNCIÓN PARA CREAR EL GRÁFICO TIPO MEDIDOR (GAUGE) ---
-def crear_medidor(actual, objetivo, marca, color_marca):
-    # Definimos el límite del reloj (un poco más del objetivo o de lo vendido para que la aguja no choque)
-    max_val = max(objetivo * 1.2, actual * 1.2, 10) 
-    
-    fig = go.Figure(go.Indicator(
-        mode = "gauge+number+delta",
-        value = actual,
-        delta = {'reference': objetivo, 'position': "top", 'valueformat': '.0f', 'font': {'size': 20}},
-        domain = {'x': [0, 1], 'y': [0, 1]},
-        title = {'text': f"Cumplimiento {marca}<br><span style='font-size:14px;color:gray'>Actual vs Plan</span>", 'font': {'size': 24}},
-        gauge = {
-            'axis': {'range': [None, max_val], 'tickwidth': 1, 'tickcolor': "darkblue"},
-            'bar': {'color': color_marca, 'thickness': 0.25},
-            'bgcolor': "white",
-            'borderwidth': 2,
-            'bordercolor': "gray",
-            'steps': [
-                {'range': [0, objetivo * 0.5], 'color': "rgba(255, 99, 71, 0.3)"},       # Zona Roja (0 al 50%)
-                {'range': [objetivo * 0.5, objetivo * 0.9], 'color': "rgba(255, 235, 59, 0.3)"}, # Zona Amarilla (50 al 90%)
-                {'range': [objetivo * 0.9, max_val], 'color': "rgba(144, 238, 144, 0.3)"}  # Zona Verde (90% en adelante)
-            ],
-            'threshold': {
-                'line': {'color': "black", 'width': 4},
-                'thickness': 0.75,
-                'value': objetivo
-            }
-        }
-    ))
-    fig.update_layout(height=350, margin=dict(t=50, b=20, l=20, r=20))
-    return fig
 
 st.title("📊 Tablero de Suscripciones")
 st.divider()
@@ -155,32 +122,6 @@ try:
         
         if not df_filtrado.empty:
             
-            # --- NUEVA SECCIÓN: MEDIDORES DE CUMPLIMIENTO (GAUGE) ---
-            st.markdown("### 🎯 Actual vs. Plan (Acumulado del período)")
-            
-            # Calculamos las ventas y objetivos totales del período filtrado
-            meses_filtrados = df_filtrado["Mes_Ingreso"].unique()
-            
-            # Data Peugeot
-            actual_peugeot = len(df_filtrado[df_filtrado["Marca"] == "PEUGEOT"])
-            obj_peugeot = 0
-            if not df_objetivos.empty:
-                obj_peugeot = df_objetivos[(df_objetivos["Marca"] == "PEUGEOT") & (df_objetivos["Mes_Ingreso"].isin(meses_filtrados))]["Objetivo"].sum()
-                
-            # Data Citroën
-            actual_citroen = len(df_filtrado[df_filtrado["Marca"] == "CITROËN"])
-            obj_citroen = 0
-            if not df_objetivos.empty:
-                obj_citroen = df_objetivos[(df_objetivos["Marca"] == "CITROËN") & (df_objetivos["Mes_Ingreso"].isin(meses_filtrados))]["Objetivo"].sum()
-            
-            col_gauge1, col_gauge2 = st.columns(2)
-            with col_gauge1:
-                st.plotly_chart(crear_medidor(actual_peugeot, obj_peugeot, "PEUGEOT", "#2E86C1"), use_container_width=True)
-            with col_gauge2:
-                st.plotly_chart(crear_medidor(actual_citroen, obj_citroen, "CITROËN", "#E74C3C"), use_container_width=True)
-
-            st.divider()
-            
             # --- GRÁFICOS INFERIORES ---
             col_graf1, col_graf2 = st.columns(2)
             
@@ -212,19 +153,25 @@ try:
                 )
                 fig_marca.update_traces(textposition='outside')
                 
-                # Línea HLINE para el gráfico mensual
+                # Línea HLINE para el gráfico mensual (Amarilla y con etiquetas alternadas)
                 df_obj_validos = df_marca[df_marca["Objetivo"] > 0]
                 if not df_obj_validos.empty:
                     objetivos_unicos = df_obj_validos.groupby("Objetivo")["Marca"].apply(lambda x: " y ".join(x.unique())).reset_index()
-                    for _, row in objetivos_unicos.iterrows():
+                    # Ordenamos por objetivo para que la alternancia sea predecible de arriba hacia abajo
+                    objetivos_unicos = objetivos_unicos.sort_values(by="Objetivo", ascending=False).reset_index(drop=True)
+                    
+                    for idx, row in objetivos_unicos.iterrows():
+                        # Si el índice es par a la izquierda, si es impar a la derecha
+                        posicion_texto = "top left" if idx % 2 == 0 else "top right"
+                        
                         fig_marca.add_hline(
                             y=row["Objetivo"],
                             line_dash="dot",
-                            line_color="red",
+                            line_color="#F1C40F", # Amarillo
                             line_width=3,
                             annotation_text=f"Obj {row['Marca']}: {int(row['Objetivo'])}",
-                            annotation_position="top right",
-                            annotation_font=dict(color="red", size=14)
+                            annotation_position=posicion_texto,
+                            annotation_font=dict(color="#B7950B", size=14) # Amarillo oscuro para mejor lectura
                         )
 
                 fig_marca.update_xaxes(type='category')
@@ -251,24 +198,39 @@ try:
                 
                 fig_ranking.update_traces(textposition='inside', insidetextanchor='middle', textfont=dict(color="white", size=14))
                 fig_ranking.update_yaxes(showticklabels=False)
-                fig_ranking.update_layout(margin=dict(t=20))
+                fig_ranking.update_layout(
+                    margin=dict(t=20),
+                    clickmode='event+select' # Habilita la selección
+                )
                 
-                st.plotly_chart(fig_ranking, use_container_width=True)
-        else:
-            st.warning("No hay operaciones para la combinación de filtros seleccionada.")
+                # Renderizamos el gráfico capturando el evento de clic con on_select
+                seleccion = st.plotly_chart(fig_ranking, use_container_width=True, on_select="rerun")
+                
+                # Extraemos el vendedor seleccionado (si se hizo clic en alguna barra)
+                vendedor_seleccionado = None
+                if seleccion and seleccion.get("selection") and seleccion["selection"].get("points"):
+                    # El valor "y" corresponde a la categoría (Vendedor_Limpio) en gráficos horizontales
+                    vendedor_seleccionado = seleccion["selection"]["points"][0]["y"]
 
         st.divider()
 
         # ---------------- TABLA DE DETALLES FINAL ----------------
         st.subheader("📋 Detalle de Operaciones")
         
+        df_tabla = df_filtrado.copy()
+        
+        # Si hay un vendedor seleccionado desde el gráfico, filtramos la tabla
+        if vendedor_seleccionado:
+            df_tabla = df_tabla[df_tabla["Vendedor_Limpio"] == vendedor_seleccionado]
+            st.info(f"🔎 Filtrando tabla inferior por el vendedor seleccionado: **{vendedor_seleccionado}**. (Para ver todos, hacé clic en el espacio en blanco del gráfico de ranking).")
+        
         columnas_deseadas = [
             "Marca", "Tipo de Solicitud", "Vendedor_Limpio", "FECHA CONFIRMACION CLIENTE", 
             "cliente", "localidad", "Fecha de TMK", "TMK", "Fecha  de Ingreso en CISA", "ESTADO"
         ]
-        columnas_finales = [col for col in columnas_deseadas if col in df_filtrado.columns]
+        columnas_finales = [col for col in columnas_deseadas if col in df_tabla.columns]
         
-        st.dataframe(df_filtrado[columnas_finales].sort_values(by="Fecha  de Ingreso en CISA", ascending=False), use_container_width=True, hide_index=True)
+        st.dataframe(df_tabla[columnas_finales].sort_values(by="Fecha  de Ingreso en CISA", ascending=False), use_container_width=True, hide_index=True)
         
     else:
         st.warning("Actualmente no hay registros en la base de datos que cumplan las condiciones estrictas (Aceptados y con fecha).")
