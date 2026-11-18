@@ -171,10 +171,10 @@ try:
                                 textposition="top center",
                                 marker=dict(
                                     size=12,
-                                    color="white", # Punto blanco
+                                    color="#F1C40F", # <-- Punto amarillo restaurado
                                     symbol="diamond"
                                 ),
-                                textfont=dict(color="white", size=15, weight="bold"), # Texto blanco y en negrita
+                                textfont=dict(color="white", size=15, weight="bold"), # Texto e ícono blancos
                                 showlegend=True
                             )
                         )
