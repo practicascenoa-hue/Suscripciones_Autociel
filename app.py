@@ -192,7 +192,7 @@ try:
                     hoverinfo="y+name"
                 ))
 
-                # 3. Barra Sólida (Sobre Ejecución) - MODIFICADA PARA TEXTO EXTERIOR
+                # 3. Barra Sólida (Sobre Ejecución) 
                 fig_marca.add_trace(go.Bar(
                     x=eje_x_agrupado,
                     y=df_marca["Excedente"],
@@ -200,9 +200,9 @@ try:
                     marker_color=df_marca["Color_Base"],
                     # Muestra la etiqueta acá si superaron el objetivo
                     text=df_marca.apply(lambda row: row["Etiqueta_Principal"] if row["Excedente"] > 0 else "", axis=1),
-                    textposition="outside", # Lo movemos afuera para que no se aplaste
-                    textfont=dict(color="black", size=14, weight="bold"), # Texto negro
-                    cliponaxis=False, # Evita que se corte si toca el techo del gráfico
+                    textposition="outside", 
+                    textfont=dict(color="black", size=14, weight="bold"), 
+                    cliponaxis=False, # <-- Este sí va acá (en la barra) para que no se corte
                     showlegend=False,
                     hoverinfo="y+name"
                 ))
@@ -222,71 +222,4 @@ try:
 
                 # 5. Trazos falsos (Dummy traces) EXCLUSIVAMENTE para crear una leyenda limpia explicativa
                 fig_marca.add_trace(go.Bar(x=[None], y=[None], marker_color="rgba(128,128,128,1)", name="Realizado"))
-                fig_marca.add_trace(go.Bar(x=[None], y=[None], marker_color="rgba(128,128,128,0.25)", marker_line=dict(color="rgba(128,128,128,1)", width=1.5), name="Faltante a la Meta"))
-                fig_marca.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="line-ew", size=15, line=dict(color="black", width=3)), name="Objetivo"))
-
-                # Configuramos el apilamiento, los márgenes y aseguramos el cliponaxis a nivel gráfico
-                fig_marca.update_layout(
-                    barmode="stack",
-                    margin=dict(t=40), # Un poco más de margen superior por si el texto vuela muy alto
-                    legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1, title=""),
-                    xaxis=dict(title=""),
-                    yaxis=dict(cliponaxis=False) # Garantiza que ningún texto "outside" se recorte
-                )
-                
-                st.plotly_chart(fig_marca, use_container_width=True)
-
-            with col_graf2:
-                st.markdown("### 🏆 Ranking de Ventas")
-                df_ranking = df_filtrado.groupby("Vendedor_Limpio").size().reset_index(name="Cantidad")
-                
-                df_ranking = df_ranking.sort_values(by="Cantidad", ascending=True)
-                df_ranking["Etiqueta_Barra"] = df_ranking["Vendedor_Limpio"] + " (" + df_ranking["Cantidad"].astype(str) + ")"
-
-                fig_ranking = px.bar(
-                    df_ranking, 
-                    x="Cantidad", 
-                    y="Vendedor_Limpio", 
-                    orientation='h',
-                    text="Etiqueta_Barra",
-                    labels={"Cantidad": "Volumen Aprobado", "Vendedor_Limpio": ""},
-                    color_discrete_sequence=["#27AE60"]
-                )
-                
-                fig_ranking.update_traces(textposition='inside', insidetextanchor='middle', textfont=dict(color="white", size=14))
-                fig_ranking.update_yaxes(showticklabels=False)
-                fig_ranking.update_layout(
-                    margin=dict(t=30),
-                    clickmode='event+select'
-                )
-                
-                seleccion = st.plotly_chart(fig_ranking, use_container_width=True, on_select="rerun")
-                
-                vendedor_seleccionado = None
-                if seleccion and seleccion.get("selection") and seleccion["selection"].get("points"):
-                    vendedor_seleccionado = seleccion["selection"]["points"][0]["y"]
-
-        st.divider()
-
-        # ---------------- TABLA DE DETALLES FINAL ----------------
-        st.subheader("📋 Detalle de Operaciones")
-        
-        df_tabla = df_filtrado.copy()
-        
-        if vendedor_seleccionado:
-            df_tabla = df_tabla[df_tabla["Vendedor_Limpio"] == vendedor_seleccionado]
-            st.info(f"🔎 Filtrando tabla inferior por el vendedor seleccionado: **{vendedor_seleccionado}**. (Para ver todos, hacé clic en el espacio en blanco del gráfico de ranking).")
-        
-        columnas_deseadas = [
-            "Marca", "Tipo de Solicitud", "Vendedor_Limpio", "FECHA CONFIRMACION CLIENTE", 
-            "cliente", "localidad", "Fecha de TMK", "TMK", "Fecha  de Ingreso en CISA", "ESTADO"
-        ]
-        columnas_finales = [col for col in columnas_deseadas if col in df_tabla.columns]
-        
-        st.dataframe(df_tabla[columnas_finales].sort_values(by="Fecha  de Ingreso en CISA", ascending=False), use_container_width=True, hide_index=True)
-        
-    else:
-        st.warning("Actualmente no hay registros en la base de datos que cumplan las condiciones estrictas (Aceptados y con fecha).")
-        
-except Exception as e:
-    st.error(f"Error al cargar los datos: {e}")
+                fig_marca.add_trace(go.Bar(x=[None], y=[None], marker_color="rgba(128,128,128,0.25)", marker_line=dict(color="rgba(128,128,128,1)", width=1.
