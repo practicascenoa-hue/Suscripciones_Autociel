@@ -136,66 +136,91 @@ try:
                 else:
                     df_marca["Objetivo"] = 0
                 
-                # --- NUEVA LÓGICA DE APILADO (Base, Faltante, Excedente) ---
+                # LÓGICA DE APILADO (Base, Faltante, Excedente)
                 df_marca["Base"] = df_marca.apply(lambda row: min(row["Cantidad"], row["Objetivo"]) if row["Objetivo"] > 0 else row["Cantidad"], axis=1)
                 df_marca["Faltante"] = df_marca.apply(lambda row: max(0, row["Objetivo"] - row["Cantidad"]) if row["Objetivo"] > 0 else 0, axis=1)
                 df_marca["Excedente"] = df_marca.apply(lambda row: max(0, row["Cantidad"] - row["Objetivo"]) if row["Objetivo"] > 0 else 0, axis=1)
 
+                # Definimos los colores por marca (Sólidos para lo vendido, Transparentes para el faltante)
+                color_peugeot_solido = "rgba(46, 134, 193, 1)"      # Azul sólido
+                color_peugeot_claro = "rgba(46, 134, 193, 0.25)"    # Azul marca de agua
+                color_citroen_solido = "rgba(231, 76, 60, 1)"       # Rojo sólido
+                color_citroen_claro = "rgba(231, 76, 60, 0.25)"     # Rojo marca de agua
+
+                df_marca["Color_Base"] = df_marca["Marca"].map({"PEUGEOT": color_peugeot_solido, "CITROËN": color_citroen_solido})
+                df_marca["Color_Faltante"] = df_marca["Marca"].map({"PEUGEOT": color_peugeot_claro, "CITROËN": color_citroen_claro})
+
                 fig_marca = go.Figure()
 
-                # Eje X con doble nivel (Mes y Marca)
+                # Eje X con doble nivel (Agrupa automáticamente por Mes y luego por Marca)
                 eje_x_agrupado = [df_marca["Mes_Ingreso"], df_marca["Marca"]]
 
-                # 1. Barra Gris (Base Ejecutada)
+                # 1. Barra Sólida (Base Ejecutada - Lo que ya se vendió hasta llegar a la meta)
                 fig_marca.add_trace(go.Bar(
                     x=eje_x_agrupado,
                     y=df_marca["Base"],
-                    name="Ejecutado (Base)",
-                    marker_color="#D3D3D3",
+                    name="Realizado",
+                    marker_color=df_marca["Color_Base"],
                     text=df_marca["Base"].apply(lambda x: str(int(x)) if x > 0 else ""),
                     textposition="inside",
-                    insidetextfont=dict(color="black", size=14, weight="bold")
+                    insidetextfont=dict(color="white", size=14, weight="bold"),
+                    showlegend=False,
+                    hoverinfo="y+name"
                 ))
 
-                # 2. Barra Roja (Faltante para la meta)
+                # 2. Barra Clara / Marca de agua (Faltante para llegar a la meta)
                 fig_marca.add_trace(go.Bar(
                     x=eje_x_agrupado,
                     y=df_marca["Faltante"],
-                    name="No Cumplimiento",
-                    marker_color="#E74C3C",
+                    name="Faltante",
+                    marker_color=df_marca["Color_Faltante"],
+                    marker_line=dict(color=df_marca["Color_Base"], width=1.5), # Borde sólido del color de la marca
                     text=df_marca["Faltante"].apply(lambda x: str(int(x)) if x > 0 else ""),
                     textposition="inside",
-                    insidetextfont=dict(color="white", size=14, weight="bold")
+                    insidetextfont=dict(color="black", size=14, weight="bold"), # Texto negro para destacar sobre fondo claro
+                    showlegend=False,
+                    hoverinfo="y+name"
                 ))
 
-                # 3. Barra Azul (Sobre Ejecución)
+                # 3. Barra Sólida (Sobre Ejecución - Si se superó la meta)
                 fig_marca.add_trace(go.Bar(
                     x=eje_x_agrupado,
                     y=df_marca["Excedente"],
                     name="Sobre Ejecución",
-                    marker_color="#5DADE2",
-                    text=df_marca["Excedente"].apply(lambda x: str(int(x)) if x > 0 else ""),
+                    marker_color=df_marca["Color_Base"], # Mismo color sólido
+                    text=df_marca["Excedente"].apply(lambda x: "+" + str(int(x)) if x > 0 else ""),
                     textposition="inside",
-                    insidetextfont=dict(color="white", size=14, weight="bold")
+                    insidetextfont=dict(color="white", size=14, weight="bold"),
+                    showlegend=False,
+                    hoverinfo="y+name"
                 ))
 
-                # 4. Línea negra horizontal para la Meta (como en la imagen de Excel)
+                # 4. Línea negra horizontal para la Meta (se posiciona en el tope)
                 df_obj_validos = df_marca[df_marca["Objetivo"] > 0]
                 if not df_obj_validos.empty:
                     fig_marca.add_trace(go.Scatter(
                         x=[df_obj_validos["Mes_Ingreso"], df_obj_validos["Marca"]],
                         y=df_obj_validos["Objetivo"],
-                        mode="markers",
+                        mode="markers+text",
                         name="Meta",
-                        marker=dict(symbol="line-ew", size=45, line=dict(color="black", width=4)), # Dibuja una línea horizontal en cada barra
-                        hoverinfo="skip"
+                        text=["Meta " + str(int(obj)) for obj in df_obj_validos["Objetivo"]],
+                        textposition="top center",
+                        marker=dict(symbol="line-ew", size=45, line=dict(color="black", width=4)),
+                        textfont=dict(color="black", size=12, weight="bold"),
+                        hoverinfo="skip",
+                        showlegend=False
                     ))
 
-                # Configuramos para que se apilen y se ajusten los márgenes
+                # 5. Trazos falsos (Dummy traces) EXCLUSIVAMENTE para crear una leyenda limpia explicativa
+                fig_marca.add_trace(go.Bar(x=[None], y=[None], marker_color="rgba(128,128,128,1)", name="Realizado"))
+                fig_marca.add_trace(go.Bar(x=[None], y=[None], marker_color="rgba(128,128,128,0.25)", marker_line=dict(color="rgba(128,128,128,1)", width=1.5), name="Faltante a la Meta"))
+                fig_marca.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="line-ew", size=15, line=dict(color="black", width=3)), name="Objetivo"))
+
+                # Configuramos el apilamiento y los márgenes
                 fig_marca.update_layout(
                     barmode="stack",
                     margin=dict(t=30),
-                    legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1, title=""),
                     xaxis=dict(title="")
                 )
                 
