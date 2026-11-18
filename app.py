@@ -228,4 +228,63 @@ try:
                 fig_marca.update_layout(
                     barmode="stack",
                     margin=dict(t=30),
-                    legend=dict(orientation
+                    legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1, title=""),
+                    xaxis=dict(title="")
+                )
+                
+                st.plotly_chart(fig_marca, use_container_width=True)
+
+            with col_graf2:
+                st.markdown("### 🏆 Ranking de Ventas")
+                df_ranking = df_filtrado.groupby("Vendedor_Limpio").size().reset_index(name="Cantidad")
+                
+                df_ranking = df_ranking.sort_values(by="Cantidad", ascending=True)
+                df_ranking["Etiqueta_Barra"] = df_ranking["Vendedor_Limpio"] + " (" + df_ranking["Cantidad"].astype(str) + ")"
+
+                fig_ranking = px.bar(
+                    df_ranking, 
+                    x="Cantidad", 
+                    y="Vendedor_Limpio", 
+                    orientation='h',
+                    text="Etiqueta_Barra",
+                    labels={"Cantidad": "Volumen Aprobado", "Vendedor_Limpio": ""},
+                    color_discrete_sequence=["#27AE60"]
+                )
+                
+                fig_ranking.update_traces(textposition='inside', insidetextanchor='middle', textfont=dict(color="white", size=14))
+                fig_ranking.update_yaxes(showticklabels=False)
+                fig_ranking.update_layout(
+                    margin=dict(t=30),
+                    clickmode='event+select'
+                )
+                
+                seleccion = st.plotly_chart(fig_ranking, use_container_width=True, on_select="rerun")
+                
+                vendedor_seleccionado = None
+                if seleccion and seleccion.get("selection") and seleccion["selection"].get("points"):
+                    vendedor_seleccionado = seleccion["selection"]["points"][0]["y"]
+
+        st.divider()
+
+        # ---------------- TABLA DE DETALLES FINAL ----------------
+        st.subheader("📋 Detalle de Operaciones")
+        
+        df_tabla = df_filtrado.copy()
+        
+        if vendedor_seleccionado:
+            df_tabla = df_tabla[df_tabla["Vendedor_Limpio"] == vendedor_seleccionado]
+            st.info(f"🔎 Filtrando tabla inferior por el vendedor seleccionado: **{vendedor_seleccionado}**. (Para ver todos, hacé clic en el espacio en blanco del gráfico de ranking).")
+        
+        columnas_deseadas = [
+            "Marca", "Tipo de Solicitud", "Vendedor_Limpio", "FECHA CONFIRMACION CLIENTE", 
+            "cliente", "localidad", "Fecha de TMK", "TMK", "Fecha  de Ingreso en CISA", "ESTADO"
+        ]
+        columnas_finales = [col for col in columnas_deseadas if col in df_tabla.columns]
+        
+        st.dataframe(df_tabla[columnas_finales].sort_values(by="Fecha  de Ingreso en CISA", ascending=False), use_container_width=True, hide_index=True)
+        
+    else:
+        st.warning("Actualmente no hay registros en la base de datos que cumplan las condiciones estrictas (Aceptados y con fecha).")
+        
+except Exception as e:
+    st.error(f"Error al cargar los datos: {e}")
