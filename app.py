@@ -173,8 +173,9 @@ try:
                     marker_color=df_marca["Color_Base"],
                     # Muestra la etiqueta solo si no hay excedente
                     text=df_marca.apply(lambda row: row["Etiqueta_Principal"] if row["Excedente"] == 0 else "", axis=1),
-                    textposition="inside",
+                    textposition="auto", # <-- Plotly decide si va horizontal, vertical o afuera
                     insidetextfont=dict(color="white", size=14, weight="bold"),
+                    outsidetextfont=dict(color="black", size=14, weight="bold"),
                     showlegend=False,
                     hoverinfo="y+name"
                 ))
@@ -200,9 +201,9 @@ try:
                     marker_color=df_marca["Color_Base"],
                     # Muestra la etiqueta acá si superaron el objetivo
                     text=df_marca.apply(lambda row: row["Etiqueta_Principal"] if row["Excedente"] > 0 else "", axis=1),
-                    textposition="outside", 
-                    textfont=dict(color="black", size=14, weight="bold"), 
-                    cliponaxis=False, # <-- Este sí va acá (en la barra) para que no se corte
+                    textposition="auto", # <-- Plotly decide la mejor posición y rotación
+                    insidetextfont=dict(color="white", size=14, weight="bold"),
+                    outsidetextfont=dict(color="black", size=14, weight="bold"),
                     showlegend=False,
                     hoverinfo="y+name"
                 ))
@@ -228,7 +229,7 @@ try:
                 # Configuramos el apilamiento y los márgenes 
                 fig_marca.update_layout(
                     barmode="stack",
-                    margin=dict(t=50), # Margen superior corregido
+                    margin=dict(t=50),
                     legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1, title=""),
                     xaxis=dict(title="")
                 )
